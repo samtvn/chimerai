@@ -1,0 +1,20 @@
+{
+  "name": "chimerai",
+  "version": "1.0.0",
+  "description": "Chimerai — Agentic AI Hackathon by Devoteam",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "uv run --project apps/api uvicorn api.main:app --reload --app-dir apps/api",
+    "dev": "pnpm run dev:web & pnpm run dev:api",
+    "build:web": "pnpm --filter web build",
+    "build": "pnpm run build:web",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "typecheck": "pnpm --filter web check && pnpm --filter @chimerai/types typecheck"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.32.1"
+}
