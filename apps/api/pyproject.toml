@@ -12,6 +12,12 @@ dependencies = [
     "pydantic>=2.13.3",
     "requests>=2.33.1",
     "bs4>=0.0.2",
+    "sqlmodel>=0.0.38",
+    "uuid6>=2025.0.1",
+    "pgvector<0.4.0",
+    "langchain-postgres>=0.0.17",
+    "langgraph>=1.1.10",
+    "psycopg[binary,pool]>=3.3.4",
 ]
 
 [project.optional-dependencies]
