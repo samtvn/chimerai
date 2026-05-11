@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .MiniWineAgent.AnalyzeCommentRequest import AnalyzeCommentRequest
+from .MiniWineAgent.models.WineRepository import WineRepository
+from .MiniWineAgent.services.TasteService import TasteService
 
 import requests
 from bs4 import BeautifulSoup
@@ -35,3 +38,17 @@ def create_user():
 async def health():
     test_soup()
     return{"data" : f"{test_soup()}"}
+
+repo = WineRepository("MiniWineAgent/data/wines.json")
+taste_service = TasteService()
+
+@app.post("/analyze-comment")
+def analyze_comment(
+    request: AnalyzeCommentRequest
+):
+
+    result = taste_service.analyze_comment(
+        request.comment
+    )
+
+    return result
