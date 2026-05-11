@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .MiniWineAgent.AnalyzeCommentRequest import AnalyzeCommentRequest
-from .MiniWineAgent.models.WineRepository import WineRepository
-from .MiniWineAgent.services.TasteService import TasteService
+from MiniWineAgent.AnalyzeCommentRequest import AnalyzeCommentRequest
+from MiniWineAgent.models.WineRepository import WineRepository
+from MiniWineAgent.services.TasteService import TasteService
 
 import requests
 from bs4 import BeautifulSoup
@@ -50,4 +50,4 @@ def analyze_comment(
         request.comment
     )
 
-    return result
+    return {"data": result.dict()}
