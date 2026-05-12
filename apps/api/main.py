@@ -1,11 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+load_dotenv()
 from MiniWineAgent.AnalyzeCommentRequest import AnalyzeCommentRequest
 from MiniWineAgent.models.WineRepository import WineRepository
 from MiniWineAgent.services.TasteService import TasteService
-
 import requests
 from bs4 import BeautifulSoup
+
+
 
 def test_soup():
     html = requests.get("https://www.idealwine.com/fr/prix-vin/133180------Bouteille-Charente-Cognac-Louis-XIII-Remy-Martin-ambre").text
@@ -50,4 +53,4 @@ def analyze_comment(
         request.comment
     )
 
-    return {"data": result.dict()}
+    return {"data": "OK"}
