@@ -4,7 +4,7 @@
   "description": "Chimerai — Agentic AI Hackathon by Devoteam",
   "private": true,
   "scripts": {
-    "dev:web": "pnpm --filter chimerai-web dev",
+    "dev:web": "pnpm --filter chimerai-web dev --host 0.0.0.0",
     "dev:api": "uv run --project apps/api uvicorn main:app --reload --app-dir apps/api",
     "dev": "pnpm run dev:web & pnpm run dev:api",
     "build:web": "pnpm --filter chimerai-web build",
