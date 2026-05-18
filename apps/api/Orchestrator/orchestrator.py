@@ -6,19 +6,23 @@ from api.WineCellarAgent.service import WineCellarAnalysisService
 from .event_manager import event_manager, Event
 from .events import AnalysisRunEvent, WineSoldEvent
 import uuid
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class CellarOrchestrator:
     """Orchestrator for wine cellar analysis and market research workflows"""
-    
-    def __init__(self):
+
+    def __init__(self, db: AsyncSession):
         """Initialize the orchestrator"""
-        self.workflow = self._build_graph()
-    
+        if db is None:
+            raise ValueError("db session is required")
+        self.db = db
+        self.graph = self._build_graph()
+
     def _build_graph(self):
         """Build the LangGraph workflow"""
         workflow = StateGraph(OrchestratorState)
-        
+
         workflow.add_node("decide_entry", self._decide_entry_point)
         workflow.add_node("analyze_cellar", self._analyze_cellar)
         workflow.add_node("evaluate_gaps", self._evaluate_gaps)
@@ -39,7 +43,7 @@ class CellarOrchestrator:
         workflow.add_edge("decide_market_analysis", END)
 
         return workflow.compile()
-    
+
     async def _decide_entry_point(self, state: OrchestratorState):
         """
         Checks for a trigger event and decides whether to start the analysis.
@@ -66,7 +70,7 @@ class CellarOrchestrator:
         """Run the wine cellar analysis"""
         print("[Orchestrator] Running cellar analysis...")
         service = WineCellarAnalysisService()
-        analysis = await service.analyze_cellar()
+        analysis = await service.analyze_cellar(self.db)
         state["cellar_analysis"] = analysis
 
         # Add analysis event
@@ -78,7 +82,7 @@ class CellarOrchestrator:
         print(f"[Orchestrator] Cellar analysis complete. Analysis ID: {analysis_id}")
 
         return state
-    
+
     async def _evaluate_gaps(self, state: OrchestratorState) -> OrchestratorState:
         """Evaluate gaps in the cellar based on weaknesses"""
         try:
@@ -86,12 +90,12 @@ class CellarOrchestrator:
             if not analysis:
                 state["error"] = "No analysis available to evaluate"
                 return state
-            
+
             print("\n[Orchestrator] Evaluating cellar gaps...")
-            
+
             # Extract missing categories from weaknesses and recommendations
             missing_categories = []
-            
+
             # Check weaknesses for patterns
             for weakness in analysis.weaknesses:
                 weakness_lower = weakness.lower()
@@ -103,19 +107,19 @@ class CellarOrchestrator:
                     missing_categories.append("Fortified wines")
                 if "varietal" in weakness_lower or "monoculture" in weakness_lower:
                     missing_categories.append("Diverse varietals")
-            
+
             # Check recommendations for action items
             for rec in analysis.recommendations:
                 if rec.criticality.value in ["high", "critical"]:
                     missing_categories.append(rec.title)
                 elif rec.criticality.value == "medium":
                     missing_categories.append(rec.title)
-            
+
             # Deduplicate
             missing_categories = list(dict.fromkeys(missing_categories))
-            
+
             state["missing_wine_categories"] = missing_categories
-            
+
             # If there are gaps, we need market analysis
             if missing_categories:
                 state["needs_market_analysis"] = True
@@ -125,13 +129,13 @@ class CellarOrchestrator:
             else:
                 print("\n[Orchestrator] Cellar is well-balanced, no gaps detected")
                 state["needs_market_analysis"] = False
-            
+
             return state
-        
+
         except Exception as e:
             state["error"] = f"Gap evaluation failed: {str(e)}"
             return state
-    
+
     async def _decide_market_analysis(self, state: OrchestratorState) -> OrchestratorState:
         """Decide whether to trigger market analysis"""
         try:
@@ -143,7 +147,7 @@ class CellarOrchestrator:
         except Exception as e:
             state["error"] = f"Decision making failed: {str(e)}"
         return state
-    
+
     async def run(self) -> OrchestratorState:
         """Execute the orchestrator workflow"""
         try:

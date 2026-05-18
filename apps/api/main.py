@@ -5,8 +5,10 @@ load_dotenv()
 from MiniWineAgent.AnalyzeCommentRequest import AnalyzeCommentRequest
 from MiniWineAgent.models.WineRepository import WineRepository
 from MiniWineAgent.services.TasteService import TasteService
+from database import get_read_db
 import requests
 from bs4 import BeautifulSoup
+from pydantic import BaseModel
 
 
 
@@ -35,6 +37,20 @@ async def root():
 
 def create_user():
     return True
+
+class New_event_request(BaseModel):
+    eventType: str
+    quantity:
+    wine
+
+@app.post("/inventory")
+async def new_event(event: New_event_request):
+    return
+
+@app.get("/inventory")
+async def get_inventory(db: AsyncSession = Depends(get_read_db)):
+    db
+
 
 @app.get("/health")
 async def health():

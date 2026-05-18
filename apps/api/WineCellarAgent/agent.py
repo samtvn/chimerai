@@ -2,6 +2,7 @@
 import os
 import json
 from typing import Any
+from sqlalchemy.ext.asyncio import AsyncSession
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 from api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
@@ -13,16 +14,16 @@ from pydantic import BaseModel, ValidationError
 
 class WineCellarAgent:
     """Wine Cellar Analysis Agent using LangGraph"""
-    
-    def __init__(self, db_url: str | None = None):
+
+    def __init__(self, db: AsyncSession):
         """Initialize the agent with database connection"""
-        self.repository = WineCellarRepository(db_url)
+        self.repository = WineCellarRepository(db)
         self.graph = self._build_graph()
-    
+
     def _build_graph(self):
         """Build the LangGraph workflow"""
         workflow = StateGraph(WineCellarAgentState)
-        
+
         # Add nodes
         workflow.add_node("fetch_data", self._fetch_wine_data)
         workflow.add_node("analyze_diversity", self._analyze_diversity)
@@ -30,7 +31,7 @@ class WineCellarAgent:
         workflow.add_node("analyze_weaknesses", self._analyze_weaknesses)
         workflow.add_node("generate_recommendations", self._generate_recommendations)
         workflow.add_node("format_output", self._format_output)
-        
+
         # Add edges
         workflow.add_edge("fetch_data", "analyze_diversity")
         workflow.add_edge("analyze_diversity", "analyze_strengths")
@@ -38,26 +39,28 @@ class WineCellarAgent:
         workflow.add_edge("analyze_weaknesses", "generate_recommendations")
         workflow.add_edge("generate_recommendations", "format_output")
         workflow.add_edge("format_output", END)
-        
+
         # Set entry point
         workflow.set_entry_point("fetch_data")
-        
+
         return workflow.compile()
-    
+
     async def _fetch_wine_data(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Fetch wine data from database"""
         try:
             wines = await self.repository.get_all_wines()
             wine_count = len(wines)
-            
+            total_quantity = await self.repository.get_total_quantity()
+
             wines_by_country = await self.repository.get_wines_by_country()
             wines_by_region = await self.repository.get_wines_by_region()
             wines_by_type = await self.repository.get_wines_by_type()
             wines_by_colour = await self.repository.get_wines_by_colour()
             wines_by_sub_type = await self.repository.get_wines_by_sub_type()
-            
+
             wines_data = {
                 "total_wines": wine_count,
+                "total_quantity": total_quantity,
                 "wines": wines,
                 "by_country": wines_by_country,
                 "by_region": wines_by_region,
@@ -65,21 +68,21 @@ class WineCellarAgent:
                 "by_colour": wines_by_colour,
                 "by_sub_type": wines_by_sub_type,
             }
-            
+
             state["wines_data"] = wines_data
             return state
         except Exception as e:
             state["error"] = f"Failed to fetch wine data: {str(e)}"
             return state
-    
+
     async def _analyze_diversity(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Analyze the diversity of the wine cellar"""
         wines_data = state.get("wines_data", {})
-        
+
         if not wines_data:
             state["error"] = "No wine data available"
             return state
-        
+
         prompt = f"""Analyze the diversity of this wine cellar and provide insights:
 
 Total Wines: {wines_data.get('total_wines', 0)}
@@ -113,12 +116,12 @@ Please analyze:
         except Exception as e:
             state["error"] = f"Diversity analysis failed: {str(e)}"
             return state
-    
+
     async def _analyze_strengths(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Analyze strengths of the wine cellar"""
         wines_data = state.get("wines_data", {})
         diversity_analysis = state.get("diversity_analysis", "")
-        
+
         prompt = f"""Based on this wine cellar data and diversity analysis:
 
 {wines_data}
@@ -142,13 +145,13 @@ List each strength as a clear, concise statement."""
         except Exception as e:
             state["error"] = f"Strengths analysis failed: {str(e)}"
             return state
-    
+
     async def _analyze_weaknesses(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Analyze weaknesses of the wine cellar"""
         wines_data = state.get("wines_data", {})
         diversity_analysis = state.get("diversity_analysis", "")
         strengths_analysis = state.get("strengths_analysis", "")
-        
+
         prompt = f"""Based on this wine cellar data:
 
 {wines_data}
@@ -173,13 +176,13 @@ List each weakness as a clear, concise statement."""
         except Exception as e:
             state["error"] = f"Weaknesses analysis failed: {str(e)}"
             return state
-    
+
     async def _generate_recommendations(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Generate specific recommendations for the wine cellar"""
         wines_data = state.get("wines_data", {})
         strengths = state.get("strengths_analysis", "")
         weaknesses = state.get("weaknesses_analysis", "")
-        
+
         prompt = f"""Based on the wine cellar analysis:
 
 Strengths:
@@ -207,7 +210,7 @@ Format each as clear JSON that can be parsed."""
         except Exception as e:
             state["error"] = f"Recommendations generation failed: {str(e)}"
             return state
-    
+
     async def _format_output(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Format the final structured output"""
         wines_data = state.get("wines_data", {})
@@ -215,7 +218,7 @@ Format each as clear JSON that can be parsed."""
         strengths_analysis = state.get("strengths_analysis", "") or ""
         weaknesses_analysis = state.get("weaknesses_analysis", "") or ""
         recommendations_draft = state.get("recommendations_draft", "") or ""
-        
+
         # Normalize various possible response types (str, list, dict) to text
         def _to_text(val):
             if isinstance(val, str):
@@ -241,14 +244,14 @@ Format each as clear JSON that can be parsed."""
         strengths_analysis = _to_text(strengths_analysis)
         weaknesses_analysis = _to_text(weaknesses_analysis)
         recommendations_draft = _to_text(recommendations_draft)
-        
+
         # Parse strengths from analysis
         strengths_list = [s.strip() for s in strengths_analysis.split('\n') if s.strip() and not s.startswith('#')]
         weaknesses_list = [w.strip() for w in weaknesses_analysis.split('\n') if w.strip() and not w.startswith('#')]
-        
+
         # Parse recommendations - attempt to extract structured data
         recommendations = self._parse_recommendations(recommendations_draft)
-        
+
         # Create diversity metrics
         diversity_metrics = {
             "countries": len(wines_data.get('by_country', {})),
@@ -256,21 +259,34 @@ Format each as clear JSON that can be parsed."""
             "wine_types": len(wines_data.get('by_type', {})),
             "colours": len(wines_data.get('by_colour', {})),
             "sub_types": len(wines_data.get('by_sub_type', {})),
+            "total_quantity": wines_data.get('total_quantity', 0),
             "distribution_by_country": wines_data.get('by_country', {}),
             "distribution_by_type": wines_data.get('by_type', {}),
         }
-        
+
         # Generate overall assessment
-        overall_assessment = f"""This wine cellar contains {wines_data.get('total_wines', 0)} wines representing 
-        {len(wines_data.get('by_country', {}))} countries and {len(wines_data.get('by_region', {}))} regions. 
+        overall_assessment = f"""This wine cellar contains {wines_data.get('total_wines', 0)} wines representing
+        {len(wines_data.get('by_country', {}))} countries and {len(wines_data.get('by_region', {}))} regions.
         The collection demonstrates a {self._calculate_diversity_level(wines_data)} level of diversity."""
-        
-        summary = f"""The cellar shows {len(strengths_list)} key strengths and has {len(weaknesses_list)} areas 
-        for improvement. {len(recommendations)} actionable recommendations have been identified."""
-        
+
+        total_quantity = wines_data.get("total_quantity", 0)
+        if wines_data.get("total_wines", 0) > 0:
+            avg_per_entry = round(total_quantity / wines_data.get("total_wines", 1), 2)
+            quantity_observation = (
+                f"User 9 has {total_quantity} total bottles across {wines_data.get('total_wines', 0)} entries "
+                f"(avg {avg_per_entry} per entry)."
+            )
+        else:
+            quantity_observation = "User 9 has no bottles recorded in the cellar."
+
+        summary = f"""{quantity_observation} The cellar shows {len(strengths_list)} key strengths and has
+        {len(weaknesses_list)} areas for improvement. {len(recommendations)} actionable recommendations
+        have been identified."""
+
         try:
             analysis_result = WineCellarAnalysis(
                 total_wines=wines_data.get('total_wines', 0),
+                quantity_observation=quantity_observation,
                 diversity_metrics=diversity_metrics,
                 strengths=strengths_list[:5],
                 weaknesses=weaknesses_list[:5],
@@ -286,15 +302,15 @@ Format each as clear JSON that can be parsed."""
         except Exception as e:
             state["error"] = f"Output formatting failed: {str(e)}"
             return state
-    
+
     def _parse_recommendations(self, recommendations_text: str) -> list[Recommendation]:
         """Parse recommendations from model output"""
         recommendations = []
-        
+
         # Try to create at least some basic recommendations from the text
         lines = recommendations_text.split('\n')
         current_rec = {}
-        
+
         for line in lines:
             line = line.strip()
             if not line:
@@ -325,7 +341,7 @@ Format each as clear JSON that can be parsed."""
                 current_rec['suggested_action'] = line.split(':', 1)[1].strip()
             elif line.lower().startswith('estimated impact:'):
                 current_rec['estimated_impact'] = line.split(':', 1)[1].strip()
-        
+
         # If parsing didn't yield results, create default recommendations
         if not recommendations:
             recommendations = [
@@ -344,17 +360,17 @@ Format each as clear JSON that can be parsed."""
                     estimated_impact="More versatile cellar suitable for various occasions"
                 ),
             ]
-        
+
         return recommendations[:6]  # Limit to 6 recommendations
-    
+
     def _calculate_diversity_level(self, wines_data: dict[str, Any]) -> str:
         """Calculate diversity level based on metrics"""
         num_countries = len(wines_data.get('by_country', {}))
         num_types = len(wines_data.get('by_type', {}))
         total_wines = wines_data.get('total_wines', 0)
-        
+
         diversity_score = (num_countries * 0.4) + (num_types * 0.3) + min(total_wines / 50, 10) * 0.3
-        
+
         if diversity_score >= 8:
             return "excellent"
         elif diversity_score >= 6:
@@ -363,20 +379,14 @@ Format each as clear JSON that can be parsed."""
             return "moderate"
         else:
             return "limited"
-    
+
     async def analyze(self) -> WineCellarAnalysis:
         """Run the complete wine cellar analysis"""
-        try:
-            # Invoke the graph asynchronously
-            result = await self.graph.ainvoke({})
-            
-            if result.get("error"):
-                raise Exception(result["error"])
-            
-            analysis = result.get("analysis_result")
-            if not analysis:
-                raise Exception("No analysis result generated")
-            
-            return analysis
-        finally:
-            await self.repository.close()
+        # Invoke the graph asynchronously
+        result = await self.graph.ainvoke({})
+        if result.get("error"):
+            raise Exception(result["error"])
+        analysis = result.get("analysis_result")
+        if not analysis:
+            raise Exception("No analysis result generated")
+        return analysis

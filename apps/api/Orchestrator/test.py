@@ -10,18 +10,24 @@ async def test_orchestrator():
     """Test the orchestrator agent"""
     try:
         from api.Orchestrator.orchestrator import CellarOrchestrator
-        
+        from api.Orchestrator.event_manager import event_manager
+        from api.Orchestrator.events import WineSoldEvent
+        from api.database.database import AsyncReadSessionLocal
+
         print("=" * 70)
         print("Wine Cellar Orchestrator - Test")
         print("=" * 70)
-        
-        orchestrator = CellarOrchestrator()
-        result = await orchestrator.run()
-        
+
+        event_manager.add_event(WineSoldEvent(wine_ids=["test-wine"], quantity=1))
+
+        async with AsyncReadSessionLocal() as session:
+            orchestrator = CellarOrchestrator(session)
+            result = await orchestrator.run()
+
         print("\n" + "=" * 70)
         print("Orchestrator Result Summary")
         print("=" * 70)
-        
+
         cellar_analysis = result.get("cellar_analysis")
         if cellar_analysis:
             total = getattr(cellar_analysis, "total_wines", 0)
@@ -30,22 +36,22 @@ async def test_orchestrator():
             print(f"  Diversity Level: {countries} countries")
         else:
             print("\n✗ Cellar analysis not available")
-        
+
         missing_cats = result.get("missing_wine_categories", [])
         print(f"\n✓ Missing Wine Categories Identified: {len(missing_cats)}")
         for i, cat in enumerate(missing_cats, 1):
             print(f"  {i}. {cat}")
-        
+
         should_market = result.get("should_call_market_analysis", False)
         print(f"\n✓ Market Analysis Needed: {should_market}")
-        
+
         if result.get("error"):
             print(f"\n✗ Error: {result['error']}")
             return False
-        
+
         print("\n" + "=" * 70)
         return True
-        
+
     except Exception as e:
         print(f"✗ Test failed: {e}")
         import traceback

@@ -1,39 +1,41 @@
 """Example FastAPI routes for Wine Cellar Analysis Agent"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 from api.WineCellarAgent.service import WineCellarAnalysisService
 from api.WineCellarAgent.models import WineCellarAnalysis
+from api.database.database import get_read_db
 
 router = APIRouter(prefix="/cellar", tags=["wine-cellar"])
 
 
 @router.get("/analysis", response_model=WineCellarAnalysis)
-async def get_cellar_analysis():
+async def get_cellar_analysis(db: AsyncSession = Depends(get_read_db)):
     """
     Analyze the wine cellar for diversity and get recommendations
-    
+
     Returns:
         WineCellarAnalysis: Complete analysis with recommendations and criticality levels
-    
+
     Raises:
         HTTPException: If analysis fails (500 error)
     """
     try:
-        analysis = await WineCellarAnalysisService.analyze_cellar()
+        analysis = await WineCellarAnalysisService.analyze_cellar(db)
         return analysis
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Wine cellar analysis failed: {str(e)}")
 
 
 @router.get("/analysis/summary")
-async def get_cellar_summary():
+async def get_cellar_summary(db: AsyncSession = Depends(get_read_db)):
     """
     Get a summary of the wine cellar analysis (quick version)
-    
+
     Returns:
         dict: Simplified summary with key metrics and top recommendations
     """
     try:
-        analysis = await WineCellarAnalysisService.analyze_cellar()
+        analysis = await WineCellarAnalysisService.analyze_cellar(db)
         return {
             "total_wines": analysis.total_wines,
             "diversity_level": _calculate_diversity_level(analysis.diversity_metrics),
@@ -60,7 +62,7 @@ def _calculate_diversity_level(metrics: dict) -> str:
         metrics.get('wine_types', 0) * 0.3 +
         min(len(metrics.get('distribution_by_country', {})) / 50, 10) * 0.3
     )
-    
+
     if score >= 8:
         return "Excellent"
     elif score >= 6:

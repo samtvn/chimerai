@@ -2,7 +2,7 @@
 
 This script can be run to test the agent locally:
     python -m WineCellarAgent.test
-    
+
 Or with pytest:
     pytest WineCellarAgent/test.py
 """
@@ -16,18 +16,18 @@ def check_env():
     """Verify required environment variables are set"""
     required_vars = ["DATABASE_RO_URL", "GOOGLE_API_KEY"]
     missing = []
-    
+
     for var in required_vars:
         if not os.getenv(var):
             missing.append(var)
-    
+
     if missing:
         print(f"⚠️  Missing environment variables: {', '.join(missing)}")
         print("Please set these variables before running the agent:")
         for var in missing:
             print(f"  export {var}=<value>")
         return False
-    
+
     print("✓ Environment variables are configured")
     return True
 
@@ -40,7 +40,7 @@ async def test_basic_import():
         from api.WineCellarAgent.repository import WineCellarRepository
         from api.WineCellarAgent.agent import WineCellarAgent
         from api.WineCellarAgent.service import WineCellarAnalysisService
-        
+
         print("✓ All modules imported successfully")
         return True
     except ImportError as e:
@@ -52,11 +52,12 @@ async def test_database_connection():
     """Test database connection"""
     try:
         from api.WineCellarAgent.repository import WineCellarRepository
-        
-        repo = WineCellarRepository()
-        count = await repo.get_wine_count()
-        print(f"✓ Database connection successful - Found {count} wines")
-        await repo.close()
+        from api.database.database import AsyncReadSessionLocal
+
+        async with AsyncReadSessionLocal() as session:
+            repo = WineCellarRepository(session)
+            count = await repo.get_wine_count()
+            print(f"✓ Database connection successful - Found {count} wines")
         return True
     except Exception as e:
         print(f"✗ Database connection failed: {e}")
@@ -68,17 +69,19 @@ async def test_full_analysis():
     try:
         print("\nRunning full wine cellar analysis...")
         from api.WineCellarAgent.service import WineCellarAnalysisService
+        from api.database.database import AsyncReadSessionLocal
         import json
-        
-        analysis = await WineCellarAnalysisService.analyze_cellar()
-        
+
+        async with AsyncReadSessionLocal() as session:
+            analysis = await WineCellarAnalysisService.analyze_cellar(session)
+
         print(f"\n✓ Analysis completed successfully!")
         print("\n" + "=" * 60)
         print("FULL CELLAR ANALYSIS RESPONSE")
         print("=" * 60)
-        
+
         print(f"\nTotal wines: {analysis.total_wines}")
-        
+
         print(f"\n--- Diversity Metrics ---")
         for key, value in analysis.diversity_metrics.items():
             if isinstance(value, dict):
@@ -89,15 +92,15 @@ async def test_full_analysis():
                     print(f"  ... and {len(value) - 10} more")
             else:
                 print(f"{key}: {value}")
-        
+
         print(f"\n--- Strengths ({len(analysis.strengths)}) ---")
         for i, strength in enumerate(analysis.strengths, 1):
             print(f"{i}. {strength}")
-        
+
         print(f"\n--- Weaknesses ({len(analysis.weaknesses)}) ---")
         for i, weakness in enumerate(analysis.weaknesses, 1):
             print(f"{i}. {weakness}")
-        
+
         print(f"\n--- Recommendations ({len(analysis.recommendations)}) ---")
         for i, rec in enumerate(analysis.recommendations, 1):
             print(f"\n{i}. {rec.title}")
@@ -105,18 +108,18 @@ async def test_full_analysis():
             print(f"   Description: {rec.description}")
             print(f"   Suggested Action: {rec.suggested_action}")
             print(f"   Estimated Impact: {rec.estimated_impact}")
-        
+
         print(f"\n--- Overall Assessment ---")
         print(analysis.overall_assessment)
-        
+
         print(f"\n--- Summary ---")
         print(analysis.summary)
-        
+
         print("\n" + "=" * 60)
         print("JSON RESPONSE")
         print("=" * 60)
         print(json.dumps(analysis.model_dump(), indent=2, default=str))
-        
+
         return True
     except Exception as e:
         print(f"✗ Analysis failed: {e}")
@@ -131,14 +134,14 @@ async def main():
     print("Wine Cellar Analysis Agent - Test Suite")
     print("=" * 60)
     print()
-    
+
     tests = [
         ("Environment Variables", check_env),
         ("Module Imports", test_basic_import),
         ("Database Connection", test_database_connection),
         ("Full Analysis", test_full_analysis),
     ]
-    
+
     results = []
     for test_name, test_func in tests:
         print(f"\n[Test] {test_name}")
@@ -154,7 +157,7 @@ async def main():
             import traceback
             traceback.print_exc()
             results.append((test_name, False))
-    
+
     # Summary
     print("\n" + "=" * 60)
     print("Test Summary")
@@ -162,11 +165,11 @@ async def main():
     for test_name, result in results:
         status = "✓ PASS" if result else "✗ FAIL"
         print(f"{status}: {test_name}")
-    
+
     passed = sum(1 for _, result in results if result)
     total = len(results)
     print(f"\nTotal: {passed}/{total} tests passed")
-    
+
     return all(result for _, result in results)
 
 
