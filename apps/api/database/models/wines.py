@@ -3,7 +3,7 @@ from uuid import UUID
 from uuid6 import uuid7
 from sqlmodel import Column, Field, Relationship, SQLModel
 from pgvector.sqlalchemy import Vector
-from .users import User
+
 
 class UserWineLink(SQLModel, table=True):
     __tablename__ = "users_wine"
@@ -11,7 +11,8 @@ class UserWineLink(SQLModel, table=True):
     wine_id: UUID = Field(foreign_key="wines.lwin", primary_key=True)
     user_id: UUID = Field(foreign_key="users.id", primary_key=True)
 
-# TODO: change vector number depending on the embedding model we will choose
+
+# Define Wine without relationships first
 class Wine(SQLModel, table=True):
     __tablename__ = "wines"
 
@@ -32,7 +33,4 @@ class Wine(SQLModel, table=True):
     sub_type: str
     designation: Optional[str] = None
     classification: Optional[str] = None
-    taste: List[float] = Field(sa_column=Column(Vector(3))) 
-
-    # Relationship back to users
-    users: List["User"] = Relationship(back_populates="wines", link_model=UserWineLink)
+    taste: List[float] = Field(sa_column=Column(Vector(3)))

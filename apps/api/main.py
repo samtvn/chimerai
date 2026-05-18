@@ -44,13 +44,13 @@ async def health():
 repo = WineRepository("MiniWineAgent/data/wines.json")
 taste_service = TasteService()
 
-@app.post("/analyze-comment")
-def analyze_comment(
-    request: AnalyzeCommentRequest
-):
+# @app.post("/analyze-comment")
+# def analyze_comment(
+#     request: AnalyzeCommentRequest
+# ):
 
-    result = taste_service.analyze_comment(
-        request.comment
-    )
+#     result = taste_service.analyze_comment(
+#         request.comment
+#     )
 
-    return {"data": "OK"}
+#     return {"data": "OK"}
