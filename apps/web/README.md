@@ -15,7 +15,7 @@ To recreate this project with the same configuration:
 
 ```sh
 # recreate this project
-pnpm dlx sv@0.15.2 create --template minimal --types ts --add tailwindcss="plugins:forms" sveltekit-adapter="adapter:auto" drizzle="database:postgresql+postgresql:postgres.js+docker:no" better-auth="demo:password" mcp="ide:opencode,vscode+setup:remote" --install pnpm web
+pnpm dlx sv@0.15.3 create --template minimal --types ts --add tailwindcss="plugins:none" sveltekit-adapter="adapter:auto" mcp="ide:opencode,vscode+setup:remote" --install pnpm demoapp
 ```
 
 ## Developing
