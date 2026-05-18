@@ -6,7 +6,6 @@ from sqlmodel import Field, Relationship, SQLModel
 if TYPE_CHECKING:
     from .cellar import Cellar
     from .transactions import Transaction
-    from .wines import Wine
 
 class User(SQLModel, table=True):
     __tablename__ = "users"
@@ -20,5 +19,4 @@ class User(SQLModel, table=True):
     lastname: str
 
     cellars: List["Cellar"] = Relationship(back_populates="user")
-    wines: List["Wine"] = Relationship(back_populates="users", link_model="Cellar")
     transactions: List["Transaction"] = Relationship(back_populates="user")

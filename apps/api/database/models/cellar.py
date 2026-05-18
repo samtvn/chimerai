@@ -1,4 +1,4 @@
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from uuid import UUID
 from sqlmodel import Field, Relationship, SQLModel
 from enum import Enum
@@ -17,7 +17,7 @@ class Cellar(SQLModel, table=True):
     __tablename__ = "Cellar"
 
     user_id: UUID = Field(foreign_key="users.id", primary_key=True)
-    wine_id: UUID = Field(foreign_key="wines.id", primary_key=True)
+    wine_id: int = Field(foreign_key="wines.id", primary_key=True)
     transaction_id: UUID = Field(foreign_key="transactions.id", primary_key=True)
     status: BottleStatus = Field(default=BottleStatus.IN_CELLAR)
 

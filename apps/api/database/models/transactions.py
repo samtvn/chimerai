@@ -21,7 +21,7 @@ class Transaction(SQLModel, table=True):
         default_factory=uuid7,
         primary_key=True
     )
-    wine_id: UUID = Field(foreign_key="wines.id")
+    wine_id: int = Field(foreign_key="wines.id")
     user_id: UUID = Field(foreign_key="users.id")
     quantity: int
     purchase_price: Optional[float] = None
