@@ -54,9 +54,8 @@ class WineCellarAgent:
 
             wines_by_country = await self.repository.get_wines_by_country()
             wines_by_region = await self.repository.get_wines_by_region()
-            wines_by_type = await self.repository.get_wines_by_type()
-            wines_by_colour = await self.repository.get_wines_by_colour()
-            wines_by_sub_type = await self.repository.get_wines_by_sub_type()
+            wines_by_color = await self.repository.get_wines_by_color()
+            wines_by_grape_variety = await self.repository.get_wines_by_grape_variety()
 
             wines_data = {
                 "total_wines": wine_count,
@@ -64,9 +63,8 @@ class WineCellarAgent:
                 "wines": wines,
                 "by_country": wines_by_country,
                 "by_region": wines_by_region,
-                "by_type": wines_by_type,
-                "by_colour": wines_by_colour,
-                "by_sub_type": wines_by_sub_type,
+                "by_color": wines_by_color,
+                "by_grape_variety": wines_by_grape_variety,
             }
 
             state["wines_data"] = wines_data
@@ -93,14 +91,11 @@ Distribution by Country:
 Distribution by Region:
 {json.dumps(wines_data.get('by_region', {}), indent=2)}
 
-Distribution by Type:
-{json.dumps(wines_data.get('by_type', {}), indent=2)}
+Distribution by Color:
+{json.dumps(wines_data.get('by_color', {}), indent=2)}
 
-Distribution by Colour:
-{json.dumps(wines_data.get('by_colour', {}), indent=2)}
-
-Distribution by Sub-type:
-{json.dumps(wines_data.get('by_sub_type', {}), indent=2)}
+Distribution by Grape Variety:
+{json.dumps(wines_data.get('by_grape_variety', {}), indent=2)}
 
 Please analyze:
 1. How diverse is this cellar?
@@ -131,7 +126,7 @@ Previous Analysis:
 
 Identify the top 3-5 strengths of this wine cellar. Consider:
 - Well-represented regions or countries
-- Good balance of wine types
+- Good balance of wine colors or grape varieties
 - Unique or valuable selections
 - Geographic representation
 
@@ -162,7 +157,7 @@ Strengths: {strengths_analysis}
 
 Identify the top 3-5 weaknesses or areas for improvement in this wine cellar. Consider:
 - Underrepresented regions or countries
-- Lack of specific wine types
+- Lack of specific wine colors or grape varieties
 - Geographic gaps
 - Imbalances in the collection
 
@@ -256,12 +251,12 @@ Format each as clear JSON that can be parsed."""
         diversity_metrics = {
             "countries": len(wines_data.get('by_country', {})),
             "regions": len(wines_data.get('by_region', {})),
-            "wine_types": len(wines_data.get('by_type', {})),
-            "colours": len(wines_data.get('by_colour', {})),
-            "sub_types": len(wines_data.get('by_sub_type', {})),
+            "wine_colors": len(wines_data.get('by_color', {})),
+            "grape_varieties": len(wines_data.get('by_grape_variety', {})),
             "total_quantity": wines_data.get('total_quantity', 0),
             "distribution_by_country": wines_data.get('by_country', {}),
-            "distribution_by_type": wines_data.get('by_type', {}),
+            "distribution_by_color": wines_data.get('by_color', {}),
+            "distribution_by_grape_variety": wines_data.get('by_grape_variety', {}),
         }
 
         # Generate overall assessment
@@ -273,11 +268,11 @@ Format each as clear JSON that can be parsed."""
         if wines_data.get("total_wines", 0) > 0:
             avg_per_entry = round(total_quantity / wines_data.get("total_wines", 1), 2)
             quantity_observation = (
-                f"User 9 has {total_quantity} total bottles across {wines_data.get('total_wines', 0)} entries "
+                f"The user has {total_quantity} total bottles across {wines_data.get('total_wines', 0)} entries "
                 f"(avg {avg_per_entry} per entry)."
             )
         else:
-            quantity_observation = "User 9 has no bottles recorded in the cellar."
+            quantity_observation = "The user has no bottles recorded in the cellar."
 
         summary = f"""{quantity_observation} The cellar shows {len(strengths_list)} key strengths and has
         {len(weaknesses_list)} areas for improvement. {len(recommendations)} actionable recommendations
@@ -366,10 +361,16 @@ Format each as clear JSON that can be parsed."""
     def _calculate_diversity_level(self, wines_data: dict[str, Any]) -> str:
         """Calculate diversity level based on metrics"""
         num_countries = len(wines_data.get('by_country', {}))
-        num_types = len(wines_data.get('by_type', {}))
+        num_varieties = len(wines_data.get('by_grape_variety', {}))
+        num_colors = len(wines_data.get('by_color', {}))
         total_wines = wines_data.get('total_wines', 0)
 
-        diversity_score = (num_countries * 0.4) + (num_types * 0.3) + min(total_wines / 50, 10) * 0.3
+        diversity_score = (
+            (num_countries * 0.35)
+            + (num_varieties * 0.35)
+            + (num_colors * 0.1)
+            + min(total_wines / 50, 10) * 0.2
+        )
 
         if diversity_score >= 8:
             return "excellent"

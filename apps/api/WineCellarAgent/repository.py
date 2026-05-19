@@ -1,5 +1,6 @@
-"""Database service for Wine Cellar Agent to fetch wine data"""
-from typing import List
+"""Database service for Wine Cellar Agent to fetch cellar data"""
+from typing import List, Optional
+from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
@@ -7,116 +8,129 @@ from sqlalchemy import text
 class WineCellarRepository:
     """Repository for accessing wine cellar data"""
 
-    _USER_ID = 9
+    _IN_CELLAR_STATUS = "in_cellar"
 
     def __init__(self, db: AsyncSession):
         """Initialize with an already-open AsyncSession"""
         if db is None:
             raise ValueError("db session is required")
         self.db = db
+        self._user_id: Optional[UUID] = None
 
-    async def _column_exists(self, session: AsyncSession, column_name: str) -> bool:
-        """Check whether a column exists on the `bottles` table."""
-        from sqlalchemy import text
-        q = text("SELECT 1 FROM information_schema.columns WHERE table_name='bottles' AND column_name = :col LIMIT 1")
-        result = await session.execute(q, {"col": column_name})
-        return result.scalar() is not None
+    async def _get_only_user_id(self) -> Optional[UUID]:
+        """Fetch and cache the only user id in the database."""
+        if self._user_id is not None:
+            return self._user_id
+
+        result = await self.db.execute(text("SELECT id FROM users LIMIT 1"))
+        self._user_id = result.scalar()
+        return self._user_id
 
     async def get_all_wines(self) -> List[dict]:
-        """Fetch all wines from the cellar as dict rows (robust to schema differences)"""
+        """Fetch all wines from the user's cellar as dict rows"""
+        user_id = await self._get_only_user_id()
+        if not user_id:
+            return []
+
         result = await self.db.execute(
             text(
-                "SELECT b.*, w.display_name, w.country, w.region, w.colour, w.\"type\", w.sub_type "
-                "FROM bottles b "
-                "JOIN wines w ON b.wine_id = w.lwin "
-                "WHERE b.user_id = :user_id"
+                "SELECT c.user_id, c.wine_id AS cellar_wine_id, c.transaction_id, c.status, "
+                "w.id AS wine_id, w.name, w.producer, w.country, w.region, w.appellation, "
+                "w.vintage, w.grape_variety, w.color, w.alcohol, w.drink_from, w.drink_to, w.market_price "
+                "FROM \"Cellar\" c "
+                "JOIN wines w ON c.wine_id = w.id "
+                "WHERE c.user_id = :user_id AND c.status = :status"
             ),
-            {"user_id": self._USER_ID},
+            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
         )
         return [dict(r._mapping) for r in result.all()]
 
     async def get_wine_count(self) -> int:
-        """Get total count of wines in cellar"""
+        """Get total count of bottles in the user's cellar"""
+        user_id = await self._get_only_user_id()
+        if not user_id:
+            return 0
         result = await self.db.execute(
-            text("SELECT count(*) FROM bottles WHERE user_id = :user_id"),
-            {"user_id": self._USER_ID},
+            text("SELECT count(*) FROM \"Cellar\" WHERE user_id = :user_id AND status = :status"),
+            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
         )
         return int(result.scalar() or 0)
 
     async def get_total_quantity(self) -> int:
         """Get total quantity of bottles for the user"""
+        user_id = await self._get_only_user_id()
+        if not user_id:
+            return 0
         result = await self.db.execute(
-            text("SELECT COALESCE(SUM(quantity), 0) FROM bottles WHERE user_id = :user_id"),
-            {"user_id": self._USER_ID},
+            text("SELECT count(*) FROM \"Cellar\" WHERE user_id = :user_id AND status = :status"),
+            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
         )
         return int(result.scalar() or 0)
 
     async def get_wines_by_country(self) -> dict[str, int]:
         """Get breakdown of wines by country"""
+        user_id = await self._get_only_user_id()
+        if not user_id:
+            return {}
         result = await self.db.execute(
             text(
                 "SELECT w.country, count(*) AS count "
-                "FROM bottles b "
-                "JOIN wines w ON b.wine_id = w.lwin "
-                "WHERE b.user_id = :user_id "
+                "FROM \"Cellar\" c "
+                "JOIN wines w ON c.wine_id = w.id "
+                "WHERE c.user_id = :user_id AND c.status = :status "
                 "GROUP BY w.country"
             ),
-            {"user_id": self._USER_ID},
+            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
         )
         return {row[0]: row[1] for row in result.all()}
 
     async def get_wines_by_region(self) -> dict[str, int]:
         """Get breakdown of wines by region"""
+        user_id = await self._get_only_user_id()
+        if not user_id:
+            return {}
         result = await self.db.execute(
             text(
                 "SELECT w.region, count(*) AS count "
-                "FROM bottles b "
-                "JOIN wines w ON b.wine_id = w.lwin "
-                "WHERE b.user_id = :user_id "
+                "FROM \"Cellar\" c "
+                "JOIN wines w ON c.wine_id = w.id "
+                "WHERE c.user_id = :user_id AND c.status = :status "
                 "GROUP BY w.region"
             ),
-            {"user_id": self._USER_ID},
+            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
         )
         return {row[0]: row[1] for row in result.all()}
 
-    async def get_wines_by_type(self) -> dict[str, int]:
-        """Get breakdown of wines by type"""
+    async def get_wines_by_color(self) -> dict[str, int]:
+        """Get breakdown of wines by color"""
+        user_id = await self._get_only_user_id()
+        if not user_id:
+            return {}
         result = await self.db.execute(
             text(
-                "SELECT w.\"type\" AS type, count(*) AS count "
-                "FROM bottles b "
-                "JOIN wines w ON b.wine_id = w.lwin "
-                "WHERE b.user_id = :user_id "
-                "GROUP BY w.\"type\""
+                "SELECT w.color AS color, count(*) AS count "
+                "FROM \"Cellar\" c "
+                "JOIN wines w ON c.wine_id = w.id "
+                "WHERE c.user_id = :user_id AND c.status = :status "
+                "GROUP BY w.color"
             ),
-            {"user_id": self._USER_ID},
+            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
         )
         return {row[0]: row[1] for row in result.all()}
 
-    async def get_wines_by_colour(self) -> dict[str, int]:
-        """Get breakdown of wines by colour"""
+    async def get_wines_by_grape_variety(self) -> dict[str, int]:
+        """Get breakdown of wines by grape variety"""
+        user_id = await self._get_only_user_id()
+        if not user_id:
+            return {}
         result = await self.db.execute(
             text(
-                "SELECT w.colour AS colour, count(*) AS count "
-                "FROM bottles b "
-                "JOIN wines w ON b.wine_id = w.lwin "
-                "WHERE b.user_id = :user_id "
-                "GROUP BY w.colour"
+                "SELECT w.grape_variety AS grape_variety, count(*) AS count "
+                "FROM \"Cellar\" c "
+                "JOIN wines w ON c.wine_id = w.id "
+                "WHERE c.user_id = :user_id AND c.status = :status "
+                "GROUP BY w.grape_variety"
             ),
-            {"user_id": self._USER_ID},
-        )
-        return {row[0]: row[1] for row in result.all()}
-
-    async def get_wines_by_sub_type(self) -> dict[str, int]:
-        """Get breakdown of wines by sub_type"""
-        result = await self.db.execute(
-            text(
-                "SELECT w.sub_type AS sub_type, count(*) AS count "
-                "FROM bottles b "
-                "JOIN wines w ON b.wine_id = w.lwin "
-                "WHERE b.user_id = :user_id "
-                "GROUP BY w.sub_type"
-            ),
-            {"user_id": self._USER_ID},
+            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
         )
         return {row[0]: row[1] for row in result.all()}

@@ -41,8 +41,8 @@ async def example_usage():
         print(f"\nDiversity Summary:")
         print(f"  - Countries: {analysis.diversity_metrics.get('countries', 0)}")
         print(f"  - Regions: {analysis.diversity_metrics.get('regions', 0)}")
-        print(f"  - Wine Types: {analysis.diversity_metrics.get('wine_types', 0)}")
-        print(f"  - Colours: {analysis.diversity_metrics.get('colours', 0)}")
+        print(f"  - Wine Colors: {analysis.diversity_metrics.get('wine_colors', 0)}")
+        print(f"  - Grape Varieties: {analysis.diversity_metrics.get('grape_varieties', 0)}")
 
         print(f"\n{'-'*60}")
         print("Strengths:")

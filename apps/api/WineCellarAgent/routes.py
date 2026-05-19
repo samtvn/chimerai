@@ -58,9 +58,10 @@ async def get_cellar_summary(db: AsyncSession = Depends(get_read_db)):
 def _calculate_diversity_level(metrics: dict) -> str:
     """Helper to calculate diversity level from metrics"""
     score = (
-        metrics.get('countries', 0) * 0.4 +
-        metrics.get('wine_types', 0) * 0.3 +
-        min(len(metrics.get('distribution_by_country', {})) / 50, 10) * 0.3
+        metrics.get('countries', 0) * 0.35 +
+        metrics.get('grape_varieties', 0) * 0.35 +
+        metrics.get('wine_colors', 0) * 0.1 +
+        min(len(metrics.get('distribution_by_country', {})) / 50, 10) * 0.2
     )
 
     if score >= 8:
