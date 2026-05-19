@@ -2,7 +2,8 @@
 import os
 import json
 from typing import Any
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+from ..database.repositories.cellar_repository import CellarRepository
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 from api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
@@ -15,9 +16,9 @@ from pydantic import BaseModel, ValidationError
 class WineCellarAgent:
     """Wine Cellar Analysis Agent using LangGraph"""
 
-    def __init__(self, db: AsyncSession):
-        """Initialize the agent with database connection"""
-        self.repository = WineCellarRepository(db)
+    def __init__(self, cellar_repo: CellarRepository, user_id: UUID | None = None):
+        """Initialize the agent with an existing CellarRepository"""
+        self.repository = WineCellarRepository(cellar_repo, user_id=user_id)
         self.graph = self._build_graph()
 
     def _build_graph(self):

@@ -58,19 +58,4 @@ async def test_db(db: AsyncSession = Depends(get_read_db)):
 
 @app.get("/health")
 async def health():
-    test_soup()
-    return{"data" : f"{test_soup()}"}
-
-repo = WineRepository("MiniWineAgent/data/wines.json")
-taste_service = TasteService()
-
-# @app.post("/analyze-comment")
-# def analyze_comment(
-#     request: AnalyzeCommentRequest
-# ):
-
-#     result = taste_service.analyze_comment(
-#         request.comment
-#     )
-
-#     return {"data": "OK"}
+    return {"status": "healthy"}

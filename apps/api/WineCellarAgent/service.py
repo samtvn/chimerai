@@ -1,16 +1,19 @@
 """Service module for Wine Cellar Analysis - provides high-level interface"""
 import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 from api.WineCellarAgent.agent import WineCellarAgent
 from api.WineCellarAgent.models import WineCellarAnalysis
-from api.database.database import AsyncReadSessionLocal
+from ..database.repositories.cellar_repository import CellarRepository
 
 
 class WineCellarAnalysisService:
     """High-level service for wine cellar analysis"""
 
     @staticmethod
-    async def analyze_cellar(db: AsyncSession) -> WineCellarAnalysis:
+    async def analyze_cellar(
+        cellar_repo: CellarRepository,
+        user_id: UUID | None = None,
+    ) -> WineCellarAnalysis:
         """
         Analyze the wine cellar and return structured recommendations
 
@@ -20,7 +23,7 @@ class WineCellarAnalysisService:
         Returns:
             WineCellarAnalysis: Structured analysis with recommendations and criticality levels
         """
-        agent = WineCellarAgent(db)
+        agent = WineCellarAgent(cellar_repo, user_id=user_id)
         return await agent.analyze()
 
 
@@ -30,8 +33,12 @@ async def example_usage():
     print("Starting Wine Cellar Analysis...")
 
     try:
+        from api.database.database import AsyncReadSessionLocal
+        from database.repositories.cellar_repository import CellarRepository
+
         async with AsyncReadSessionLocal() as session:
-            analysis = await WineCellarAnalysisService.analyze_cellar(session)
+            cellar_repo = CellarRepository(session, read_only=True)
+            analysis = await WineCellarAnalysisService.analyze_cellar(cellar_repo)
 
         print(f"\n{'='*60}")
         print(f"Wine Cellar Analysis Report")

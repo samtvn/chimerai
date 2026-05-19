@@ -6,17 +6,19 @@ from api.WineCellarAgent.service import WineCellarAnalysisService
 from .event_manager import event_manager, Event
 from .events import AnalysisRunEvent, WineSoldEvent
 import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+from ..database.repositories.cellar_repository import CellarRepository
 
 
 class CellarOrchestrator:
     """Orchestrator for wine cellar analysis and market research workflows"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, cellar_repo: CellarRepository, user_id: UUID | None = None):
         """Initialize the orchestrator"""
-        if db is None:
-            raise ValueError("db session is required")
-        self.db = db
+        if cellar_repo is None:
+            raise ValueError("cellar_repo is required")
+        self.cellar_repo = cellar_repo
+        self.user_id = user_id
         self.graph = self._build_graph()
 
     def _build_graph(self):
@@ -70,7 +72,7 @@ class CellarOrchestrator:
         """Run the wine cellar analysis"""
         print("[Orchestrator] Running cellar analysis...")
         service = WineCellarAnalysisService()
-        analysis = await service.analyze_cellar(self.db)
+        analysis = await service.analyze_cellar(self.cellar_repo, user_id=self.user_id)
         state["cellar_analysis"] = analysis
 
         # Add analysis event

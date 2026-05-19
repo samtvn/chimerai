@@ -13,6 +13,7 @@ async def test_orchestrator():
         from api.Orchestrator.event_manager import event_manager
         from api.Orchestrator.events import WineSoldEvent
         from api.database.database import AsyncReadSessionLocal
+        from ..database.repositories.cellar_repository import CellarRepository
 
         print("=" * 70)
         print("Wine Cellar Orchestrator - Test")
@@ -21,7 +22,8 @@ async def test_orchestrator():
         event_manager.add_event(WineSoldEvent(wine_ids=["test-wine"], quantity=1))
 
         async with AsyncReadSessionLocal() as session:
-            orchestrator = CellarOrchestrator(session)
+            cellar_repo = CellarRepository(session, read_only=True)
+            orchestrator = CellarOrchestrator(cellar_repo)
             result = await orchestrator.run()
 
         print("\n" + "=" * 70)

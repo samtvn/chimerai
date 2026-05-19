@@ -40,6 +40,7 @@ async def test_basic_import():
         from api.WineCellarAgent.repository import WineCellarRepository
         from api.WineCellarAgent.agent import WineCellarAgent
         from api.WineCellarAgent.service import WineCellarAnalysisService
+        from ..database.repositories.cellar_repository import CellarRepository
 
         print("✓ All modules imported successfully")
         return True
@@ -53,9 +54,11 @@ async def test_database_connection():
     try:
         from api.WineCellarAgent.repository import WineCellarRepository
         from api.database.database import AsyncReadSessionLocal
+        from ..database.repositories.cellar_repository import CellarRepository
 
         async with AsyncReadSessionLocal() as session:
-            repo = WineCellarRepository(session)
+            cellar_repo = CellarRepository(session, read_only=True)
+            repo = WineCellarRepository(cellar_repo)
             count = await repo.get_wine_count()
             print(f"✓ Database connection successful - Found {count} wines")
         return True
@@ -70,10 +73,12 @@ async def test_full_analysis():
         print("\nRunning full wine cellar analysis...")
         from api.WineCellarAgent.service import WineCellarAnalysisService
         from api.database.database import AsyncReadSessionLocal
+        from ..database.repositories.cellar_repository import CellarRepository
         import json
 
         async with AsyncReadSessionLocal() as session:
-            analysis = await WineCellarAnalysisService.analyze_cellar(session)
+            cellar_repo = CellarRepository(session, read_only=True)
+            analysis = await WineCellarAnalysisService.analyze_cellar(cellar_repo)
 
         print(f"\n✓ Analysis completed successfully!")
         print("\n" + "=" * 60)

@@ -1,30 +1,43 @@
 """Database service for Wine Cellar Agent to fetch cellar data"""
 from typing import List, Optional
 from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import func, select
+
+from ..database.models.cellar import BottleStatus, Cellar
+from ..database.models.users import User
+from ..database.models.wines import Wine
+from ..database.repositories.cellar_repository import CellarRepository
 
 
 class WineCellarRepository:
     """Repository for accessing wine cellar data"""
 
-    _IN_CELLAR_STATUS = "in_cellar"
+    def __init__(self, cellar_repo: CellarRepository, user_id: Optional[UUID] = None):
+        """Initialize with an existing CellarRepository instance"""
+        if cellar_repo is None:
+            raise ValueError("cellar_repo is required")
+        self.cellar_repo = cellar_repo
+        self._user_id: Optional[UUID] = user_id
 
-    def __init__(self, db: AsyncSession):
-        """Initialize with an already-open AsyncSession"""
-        if db is None:
-            raise ValueError("db session is required")
-        self.db = db
-        self._user_id: Optional[UUID] = None
+    @property
+    def _session(self):
+        return self.cellar_repo.session
 
     async def _get_only_user_id(self) -> Optional[UUID]:
         """Fetch and cache the only user id in the database."""
         if self._user_id is not None:
             return self._user_id
 
-        result = await self.db.execute(text("SELECT id FROM users LIMIT 1"))
+        result = await self._session.execute(select(User.id).limit(1))
         self._user_id = result.scalar()
         return self._user_id
+
+    def _model_to_dict(self, model) -> dict:
+        if model is None:
+            return {}
+        if hasattr(model, "model_dump"):
+            return model.model_dump()
+        return model.dict()
 
     async def get_all_wines(self) -> List[dict]:
         """Fetch all wines from the user's cellar as dict rows"""
@@ -32,55 +45,61 @@ class WineCellarRepository:
         if not user_id:
             return []
 
-        result = await self.db.execute(
-            text(
-                "SELECT c.user_id, c.wine_id AS cellar_wine_id, c.transaction_id, c.status, "
-                "w.id AS wine_id, w.name, w.producer, w.country, w.region, w.appellation, "
-                "w.vintage, w.grape_variety, w.color, w.alcohol, w.drink_from, w.drink_to, w.market_price "
-                "FROM \"Cellar\" c "
-                "JOIN wines w ON c.wine_id = w.id "
-                "WHERE c.user_id = :user_id AND c.status = :status"
-            ),
-            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
+        result = await self._session.execute(
+            select(Cellar, Wine)
+            .join(Wine, Cellar.wine_id == Wine.id)
+            .where(
+                Cellar.user_id == user_id,
+                Cellar.status == BottleStatus.IN_CELLAR,
+            )
         )
-        return [dict(r._mapping) for r in result.all()]
+        rows = result.all()
+
+        wines = []
+        for cellar, wine in rows:
+            cellar_data = self._model_to_dict(cellar)
+            wine_data = self._model_to_dict(wine)
+            wines.append(
+                {
+                    "cellar_id": cellar_data.get("id"),
+                    "user_id": cellar_data.get("user_id"),
+                    "transaction_id": cellar_data.get("transaction_id"),
+                    "cellar_status": cellar_data.get("status"),
+                    "wine": wine_data,
+                }
+            )
+        return wines
 
     async def get_wine_count(self) -> int:
         """Get total count of bottles in the user's cellar"""
         user_id = await self._get_only_user_id()
         if not user_id:
             return 0
-        result = await self.db.execute(
-            text("SELECT count(*) FROM \"Cellar\" WHERE user_id = :user_id AND status = :status"),
-            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
+        result = await self._session.execute(
+            select(func.count(Cellar.id)).where(
+                Cellar.user_id == user_id,
+                Cellar.status == BottleStatus.IN_CELLAR,
+            )
         )
         return int(result.scalar() or 0)
 
     async def get_total_quantity(self) -> int:
         """Get total quantity of bottles for the user"""
-        user_id = await self._get_only_user_id()
-        if not user_id:
-            return 0
-        result = await self.db.execute(
-            text("SELECT count(*) FROM \"Cellar\" WHERE user_id = :user_id AND status = :status"),
-            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
-        )
-        return int(result.scalar() or 0)
+        return await self.get_wine_count()
 
     async def get_wines_by_country(self) -> dict[str, int]:
         """Get breakdown of wines by country"""
         user_id = await self._get_only_user_id()
         if not user_id:
             return {}
-        result = await self.db.execute(
-            text(
-                "SELECT w.country, count(*) AS count "
-                "FROM \"Cellar\" c "
-                "JOIN wines w ON c.wine_id = w.id "
-                "WHERE c.user_id = :user_id AND c.status = :status "
-                "GROUP BY w.country"
-            ),
-            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
+        result = await self._session.execute(
+            select(Wine.country, func.count(Cellar.id))
+            .join(Cellar, Cellar.wine_id == Wine.id)
+            .where(
+                Cellar.user_id == user_id,
+                Cellar.status == BottleStatus.IN_CELLAR,
+            )
+            .group_by(Wine.country)
         )
         return {row[0]: row[1] for row in result.all()}
 
@@ -89,15 +108,14 @@ class WineCellarRepository:
         user_id = await self._get_only_user_id()
         if not user_id:
             return {}
-        result = await self.db.execute(
-            text(
-                "SELECT w.region, count(*) AS count "
-                "FROM \"Cellar\" c "
-                "JOIN wines w ON c.wine_id = w.id "
-                "WHERE c.user_id = :user_id AND c.status = :status "
-                "GROUP BY w.region"
-            ),
-            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
+        result = await self._session.execute(
+            select(Wine.region, func.count(Cellar.id))
+            .join(Cellar, Cellar.wine_id == Wine.id)
+            .where(
+                Cellar.user_id == user_id,
+                Cellar.status == BottleStatus.IN_CELLAR,
+            )
+            .group_by(Wine.region)
         )
         return {row[0]: row[1] for row in result.all()}
 
@@ -106,15 +124,14 @@ class WineCellarRepository:
         user_id = await self._get_only_user_id()
         if not user_id:
             return {}
-        result = await self.db.execute(
-            text(
-                "SELECT w.color AS color, count(*) AS count "
-                "FROM \"Cellar\" c "
-                "JOIN wines w ON c.wine_id = w.id "
-                "WHERE c.user_id = :user_id AND c.status = :status "
-                "GROUP BY w.color"
-            ),
-            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
+        result = await self._session.execute(
+            select(Wine.color, func.count(Cellar.id))
+            .join(Cellar, Cellar.wine_id == Wine.id)
+            .where(
+                Cellar.user_id == user_id,
+                Cellar.status == BottleStatus.IN_CELLAR,
+            )
+            .group_by(Wine.color)
         )
         return {row[0]: row[1] for row in result.all()}
 
@@ -123,14 +140,13 @@ class WineCellarRepository:
         user_id = await self._get_only_user_id()
         if not user_id:
             return {}
-        result = await self.db.execute(
-            text(
-                "SELECT w.grape_variety AS grape_variety, count(*) AS count "
-                "FROM \"Cellar\" c "
-                "JOIN wines w ON c.wine_id = w.id "
-                "WHERE c.user_id = :user_id AND c.status = :status "
-                "GROUP BY w.grape_variety"
-            ),
-            {"user_id": user_id, "status": self._IN_CELLAR_STATUS},
+        result = await self._session.execute(
+            select(Wine.grape_variety, func.count(Cellar.id))
+            .join(Cellar, Cellar.wine_id == Wine.id)
+            .where(
+                Cellar.user_id == user_id,
+                Cellar.status == BottleStatus.IN_CELLAR,
+            )
+            .group_by(Wine.grape_variety)
         )
         return {row[0]: row[1] for row in result.all()}
