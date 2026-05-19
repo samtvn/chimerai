@@ -14,7 +14,7 @@ class BottleStatus(str, Enum):
     OPEN = "open"
 
 class Cellar(SQLModel, table=True):
-    __tablename__ = "Cellar"
+    __tablename__ = "cellar"
 
     user_id: UUID = Field(foreign_key="users.id", primary_key=True)
     wine_id: int = Field(foreign_key="wines.id", primary_key=True)

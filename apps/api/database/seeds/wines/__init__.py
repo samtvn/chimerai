@@ -1,3 +1,4 @@
+import asyncio
 from .dessert import seed_dessert
 from .fortified import seed_fortified
 from .red import seed_red
@@ -15,9 +16,11 @@ __all__ = [
 ]
 
 async def seed_wines():
-    await seed_rose()
-    await seed_fortified()
-    await seed_sparkling()
-    await seed_white()
-    await seed_red()
-    await seed_dessert()
+    await asyncio.gather(
+        seed_rose(),
+        seed_fortified(),
+        seed_sparkling(),
+        seed_white(),
+        seed_red(),
+        seed_dessert(),
+    )

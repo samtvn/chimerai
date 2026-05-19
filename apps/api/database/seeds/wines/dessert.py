@@ -1,6 +1,6 @@
 from sqlalchemy import select
-from database.database import AsyncSessionLocal
-from database.models.wines import Wine
+from ...database import AsyncSessionLocal
+from ...models.wines import Wine
 
 async def seed_dessert():
         async with AsyncSessionLocal() as session:
