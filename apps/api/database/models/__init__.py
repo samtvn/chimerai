@@ -1,10 +1,6 @@
-"""Database models for Chimerai API
+from .users import User  # noqa: F401
+from .wines import Wine  # noqa: F401
+from .cellar import Cellar  # noqa: F401
+from .transactions import Transaction  # noqa: F401
 
-Import order matters to avoid circular imports.
-Always import wines first, then users, then cellar.
-"""
-from .wines import Wine
-from .users import User
-from .cellar import Cellar
-
-__all__ = ["Wine", "User", "Cellar"]
+__all__ = ["User", "Wine", "Cellar", "Transaction"]

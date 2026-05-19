@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 from uuid import UUID
+from uuid6 import uuid7
 from sqlmodel import Field, Relationship, SQLModel
 from enum import Enum
 
@@ -14,11 +15,15 @@ class BottleStatus(str, Enum):
     OPEN = "open"
 
 class Cellar(SQLModel, table=True):
-    __tablename__ = "Cellar"
+    __tablename__ = "cellar"
 
-    user_id: UUID = Field(foreign_key="users.id", primary_key=True)
-    wine_id: int = Field(foreign_key="wines.id", primary_key=True)
-    transaction_id: UUID = Field(foreign_key="transactions.id", primary_key=True)
+    id: UUID = Field(
+        default_factory=uuid7,
+        primary_key=True
+    )
+    user_id: UUID = Field(foreign_key="users.id")
+    wine_id: int = Field(foreign_key="wines.id")
+    transaction_id: UUID = Field(foreign_key="transactions.id")
     status: BottleStatus = Field(default=BottleStatus.IN_CELLAR)
 
     user: "User" = Relationship(back_populates="cellars")

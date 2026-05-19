@@ -1,5 +1,5 @@
-from database.database import AsyncSessionLocal
-from database.models.users import User
+from ..database import AsyncSessionLocal
+from ..models.users import User
 from sqlalchemy import select
 from uuid6 import uuid7
 

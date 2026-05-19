@@ -1,27 +1,38 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-load_dotenv()
-from MiniWineAgent.AnalyzeCommentRequest import AnalyzeCommentRequest
-from MiniWineAgent.models.WineRepository import WineRepository
-from MiniWineAgent.services.TasteService import TasteService
-from database import get_read_db
-import requests
-from bs4 import BeautifulSoup
-from pydantic import BaseModel
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+# Import all models to register them with SQLModel
+from database.models import User, Wine, Cellar, Transaction  # noqa: F401
+from database.database import engine
+from database.dependencies import get_read_db
+from database.repositories import UserRepository
+from routes.examples import router as examples_router
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("🚀 Starting Chimerai API")
+    print("📊 Verifying database connection...")
+    async with engine.begin():
+        print("✅ Database connection successful")
 
-def test_soup():
-    html = requests.get("https://www.idealwine.com/fr/prix-vin/133180------Bouteille-Charente-Cognac-Louis-XIII-Remy-Martin-ambre").text
-    soup = BeautifulSoup(html, "html.parser")
-    print(type(soup))
-    return soup
+    yield  # App runs here
+
+    # Shutdown
+    print("🛑 Shutting down Chimerai API")
+    await engine.dispose()
+    print("✅ Database connection closed")
 
 
-
-
-app = FastAPI(title="Chimerai API", version="0.1.0")
+app = FastAPI(
+    title="Chimerai API",
+    version="0.1.0",
+    lifespan=lifespan
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,26 +42,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include route modules
+app.include_router(examples_router)
+
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "Chimerai API is running"}
 
-def create_user():
-    return True
-
-class New_event_request(BaseModel):
-    eventType: str
-    quantity:
-    wine
-
-@app.post("/inventory")
-async def new_event(event: New_event_request):
-    return
-
-@app.get("/inventory")
-async def get_inventory(db: AsyncSession = Depends(get_read_db)):
-    db
-
+@app.get("/test-db")
+async def test_db(db: AsyncSession = Depends(get_read_db)):
+    """Test database connection and retrieve users using repository pattern"""
+    user_repo = UserRepository(db, read_only=True)
+    users = await user_repo.get_all(limit=10)
+    return {"users": users}
 
 @app.get("/health")
 async def health():

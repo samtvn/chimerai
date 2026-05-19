@@ -1,10 +1,10 @@
 """
 Drops all tables in the public schema regardless of SQLModel metadata.
-Usage: uv run -m database.drop_db
+Usage: uv run -m apps.api.database.drop_db
 """
 import asyncio
 from sqlalchemy import text
-from database.database import engine
+from .database import engine
 
 
 async def drop_db():
