@@ -28,12 +28,3 @@ AsyncReadSessionLocal = sessionmaker(
     class_=AsyncSession, 
     expire_on_commit=False
 )
-
-# Use this in your routes: def route(db: AsyncSession = Depends(get_db))
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
-
-async def get_read_db():
-    async with AsyncReadSessionLocal() as session:
-        yield session
