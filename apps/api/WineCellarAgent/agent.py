@@ -1,5 +1,4 @@
 """Wine Cellar Analysis Agent using LangGraph"""
-import os
 import json
 from typing import Any
 from uuid import UUID
@@ -9,8 +8,15 @@ from langchain_core.messages import HumanMessage
 from api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
 from api.WineCellarAgent.state import WineCellarAgentState
 from api.WineCellarAgent.repository import WineCellarRepository
-from api.WineCellarAgent.models import WineCellarAnalysis, Recommendation, CriticalityLevel
-from pydantic import BaseModel, ValidationError
+from api.WineCellarAgent.models import (
+    CriticalityLevel,
+    Recommendation,
+    RecommendationPlan,
+    WineBuyingAspect,
+    WineBuyingParameter,
+    WineCellarAnalysis,
+)
+from pydantic import ValidationError
 
 
 class WineCellarAgent:
@@ -175,11 +181,12 @@ List each weakness as a clear, concise statement."""
 
     async def _generate_recommendations(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Generate specific recommendations for the wine cellar"""
-        wines_data = state.get("wines_data", {})
         strengths = state.get("strengths_analysis", "")
         weaknesses = state.get("weaknesses_analysis", "")
 
-        prompt = f"""Based on the wine cellar analysis:
+        allowed_aspects = ", ".join(aspect.value for aspect in WineBuyingAspect)
+
+        prompt = f"""Based on the wine cellar analysis, return a structured recommendation plan.
 
 Strengths:
 {strengths}
@@ -187,21 +194,31 @@ Strengths:
 Weaknesses:
 {weaknesses}
 
-Generate 4-6 specific, actionable recommendations to improve this wine cellar. For each recommendation, provide:
+Generate 4-6 specific, actionable recommendations to improve this wine cellar.
 
-Recommendation 1:
-- Title: [Short title]
-- Description: [Detailed explanation]
-- Criticality: [low/medium/high/critical]
-- Suggested Action: [Specific action to take]
-- Estimated Impact: [Expected benefit]
+Each recommendation must include:
+- title
+- description
+- criticality
+- price_range
+- quantity_to_buy
+- parameters
+- suggested_action
+- estimated_impact
 
-Format each as clear JSON that can be parsed."""
+Rules for parameters:
+- Each recommendation must propose at least one wine purchase parameter.
+- Each parameter.aspect must be one of: {allowed_aspects}
+- The target field should be a concise value or range, such as a country, region, price range, alcohol level, colour, tannin level, acidity level, sweetness level, body, grape variety, style, vintage, ageing potential, or food pairing.
+- The recommendation must always include a price range expressed as a concise human-readable range such as "15-25 EUR" or "30-45 USD".
+- quantity_to_buy must be a positive integer that reflects how many bottles to buy.
+- Keep the recommendations practical and varied.
+"""
 
         try:
-            message = HumanMessage(content=prompt)
-            response = await gemini_flash_3_1_lite.ainvoke([message])
-            state["recommendations_draft"] = response.content
+            structured_llm = gemini_flash_3_1_lite.with_structured_output(RecommendationPlan)
+            response = await structured_llm.ainvoke(prompt)
+            state["recommendation_plan"] = response
             return state
         except Exception as e:
             state["error"] = f"Recommendations generation failed: {str(e)}"
@@ -210,10 +227,9 @@ Format each as clear JSON that can be parsed."""
     async def _format_output(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Format the final structured output"""
         wines_data = state.get("wines_data", {})
-        diversity_analysis = state.get("diversity_analysis", "") or ""
         strengths_analysis = state.get("strengths_analysis", "") or ""
         weaknesses_analysis = state.get("weaknesses_analysis", "") or ""
-        recommendations_draft = state.get("recommendations_draft", "") or ""
+        recommendation_plan = state.get("recommendation_plan")
 
         # Normalize various possible response types (str, list, dict) to text
         def _to_text(val):
@@ -239,14 +255,12 @@ Format each as clear JSON that can be parsed."""
 
         strengths_analysis = _to_text(strengths_analysis)
         weaknesses_analysis = _to_text(weaknesses_analysis)
-        recommendations_draft = _to_text(recommendations_draft)
 
         # Parse strengths from analysis
         strengths_list = [s.strip() for s in strengths_analysis.split('\n') if s.strip() and not s.startswith('#')]
         weaknesses_list = [w.strip() for w in weaknesses_analysis.split('\n') if w.strip() and not w.startswith('#')]
 
-        # Parse recommendations - attempt to extract structured data
-        recommendations = self._parse_recommendations(recommendations_draft)
+        recommendations = recommendation_plan.recommendations if recommendation_plan else self._default_recommendations()
 
         # Create diversity metrics
         diversity_metrics = {
@@ -299,65 +313,53 @@ Format each as clear JSON that can be parsed."""
             state["error"] = f"Output formatting failed: {str(e)}"
             return state
 
-    def _parse_recommendations(self, recommendations_text: str) -> list[Recommendation]:
-        """Parse recommendations from model output"""
-        recommendations = []
+    def _default_recommendations(self) -> list[Recommendation]:
+        """Fallback recommendations used when structured output cannot be produced"""
 
-        # Try to create at least some basic recommendations from the text
-        lines = recommendations_text.split('\n')
-        current_rec = {}
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                if current_rec and 'title' in current_rec:
-                    try:
-                        rec = Recommendation(
-                            title=current_rec.get('title', 'Recommendation'),
-                            description=current_rec.get('description', line),
-                            criticality=current_rec.get('criticality', CriticalityLevel.MEDIUM),
-                            suggested_action=current_rec.get('suggested_action', 'Review cellar'),
-                            estimated_impact=current_rec.get('estimated_impact', 'Improved diversity'),
-                        )
-                        recommendations.append(rec)
-                    except Exception:
-                        pass
-                    current_rec = {}
-            elif line.lower().startswith('title:'):
-                current_rec['title'] = line.split(':', 1)[1].strip()
-            elif line.lower().startswith('description:'):
-                current_rec['description'] = line.split(':', 1)[1].strip()
-            elif line.lower().startswith('criticality:'):
-                criticality_str = line.split(':', 1)[1].strip().lower()
-                try:
-                    current_rec['criticality'] = CriticalityLevel(criticality_str)
-                except ValueError:
-                    current_rec['criticality'] = CriticalityLevel.MEDIUM
-            elif line.lower().startswith('suggested action:'):
-                current_rec['suggested_action'] = line.split(':', 1)[1].strip()
-            elif line.lower().startswith('estimated impact:'):
-                current_rec['estimated_impact'] = line.split(':', 1)[1].strip()
-
-        # If parsing didn't yield results, create default recommendations
-        if not recommendations:
-            recommendations = [
-                Recommendation(
-                    title="Expand Geographic Diversity",
-                    description="The cellar would benefit from expanding its geographic representation.",
-                    criticality=CriticalityLevel.MEDIUM,
-                    suggested_action="Acquire wines from underrepresented regions",
-                    estimated_impact="Improved global representation and tasting experiences"
-                ),
-                Recommendation(
-                    title="Balance Wine Types",
-                    description="Consider balancing the types of wines in your collection.",
-                    criticality=CriticalityLevel.MEDIUM,
-                    suggested_action="Review current type distribution and acquire complementary wines",
-                    estimated_impact="More versatile cellar suitable for various occasions"
-                ),
-            ]
-
-        return recommendations[:6]  # Limit to 6 recommendations
+        return [
+            Recommendation(
+                title="Expand Geographic Diversity",
+                description="The cellar would benefit from expanding its geographic representation.",
+                criticality=CriticalityLevel.MEDIUM,
+                price_range="20-35 EUR",
+                quantity_to_buy=6,
+                parameters=[
+                    WineBuyingParameter(
+                        aspect=WineBuyingAspect.COUNTRY,
+                        target="Underrepresented countries",
+                        rationale="Broader geographic coverage improves cellar balance",
+                    ),
+                    WineBuyingParameter(
+                        aspect=WineBuyingAspect.REGION,
+                        target="Underrepresented wine regions",
+                        rationale="Region-level diversity adds depth and variety",
+                    ),
+                ],
+                suggested_action="Acquire wines from underrepresented regions",
+                estimated_impact="Improved global representation and tasting experiences",
+            ),
+            Recommendation(
+                title="Balance Wine Styles",
+                description="Consider balancing the styles and profiles in your collection.",
+                criticality=CriticalityLevel.MEDIUM,
+                price_range="15-30 EUR",
+                quantity_to_buy=4,
+                parameters=[
+                    WineBuyingParameter(
+                        aspect=WineBuyingAspect.COLOUR,
+                        target="A colour not currently dominant in the cellar",
+                        rationale="Colour balance makes the cellar more versatile",
+                    ),
+                    WineBuyingParameter(
+                        aspect=WineBuyingAspect.PRICE_RANGE,
+                        target="Mid-range bottles that complement the existing collection",
+                        rationale="A balanced price range improves flexibility and value",
+                    ),
+                ],
+                suggested_action="Review current style distribution and buy complementary wines",
+                estimated_impact="More versatile cellar suitable for various occasions",
+            ),
+        ]
 
     def _calculate_diversity_level(self, wines_data: dict[str, Any]) -> str:
         """Calculate diversity level based on metrics"""

@@ -49,7 +49,7 @@ async def get_cellar_summary(db=Depends(get_read_db)):
                     "action": rec.suggested_action
                 }
                 for rec in analysis.recommendations
-                if rec.criticality in ["high", "critical"]
+                if rec.criticality.value in ["high", "critical"]
             ][:3],
             "summary": analysis.summary
         }

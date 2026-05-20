@@ -6,7 +6,7 @@ A LangGraph-based agent that analyzes wine cellar diversity and provides structu
 
 - **Diversity Analysis**: Analyzes the distribution of wines by country, region, type, and colour
 - **Strengths & Weaknesses**: Identifies what's working well in your cellar and areas for improvement
-- **Structured Recommendations**: Provides actionable recommendations with criticality levels (low, medium, high, critical)
+- **Structured Recommendations**: Provides actionable recommendations with criticality levels, bottle quantities, and fixed wine-buying parameters
 - **AI-Powered Insights**: Uses LangChain and Google Gemini 3.1 Flash Lite for intelligent analysis
 
 ## Architecture
@@ -87,6 +87,14 @@ asyncio.run(main())
             "title": str,
             "description": str,
             "criticality": "low|medium|high|critical",
+            "quantity_to_buy": int,
+            "parameters": [
+                {
+                    "aspect": "country|region|sub_region|price_range|alcohol_level|colour|tannin|acidity|sweetness|body|grape_variety|style|vintage|ageing_potential|food_pairing",
+                    "target": str,
+                    "rationale": str
+                }
+            ],
             "suggested_action": str,
             "estimated_impact": str
         }

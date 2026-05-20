@@ -64,8 +64,15 @@ async def example_usage():
         print(f"\n{'-'*60}")
         print("Recommendations:")
         for i, rec in enumerate(analysis.recommendations, 1):
-            print(f"\n  {i}. {rec.title} [{rec.criticality.upper()}]")
+            print(f"\n  {i}. {rec.title} [{rec.criticality.value.upper()}]")
             print(f"     Description: {rec.description}")
+            print(f"     Price range: {rec.price_range}")
+            print(f"     Quantity to buy: {rec.quantity_to_buy}")
+            print(f"     Parameters:")
+            for parameter in rec.parameters:
+                print(
+                    f"       - {parameter.aspect.value}: {parameter.target} ({parameter.rationale})"
+                )
             print(f"     Action: {rec.suggested_action}")
             print(f"     Impact: {rec.estimated_impact}")
 

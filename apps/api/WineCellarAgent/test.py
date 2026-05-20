@@ -35,7 +35,14 @@ def check_env():
 async def test_basic_import():
     """Test that all modules can be imported"""
     try:
-        from api.WineCellarAgent.models import WineCellarAnalysis, Recommendation, CriticalityLevel
+        from api.WineCellarAgent.models import (
+            CriticalityLevel,
+            Recommendation,
+            RecommendationPlan,
+            WineBuyingAspect,
+            WineBuyingParameter,
+            WineCellarAnalysis,
+        )
         from api.WineCellarAgent.state import WineCellarAgentState
         from api.WineCellarAgent.repository import WineCellarRepository
         from api.WineCellarAgent.agent import WineCellarAgent
@@ -46,6 +53,57 @@ async def test_basic_import():
         return True
     except ImportError as e:
         print(f"✗ Import error: {e}")
+        return False
+
+
+async def test_structured_models():
+    """Test the structured recommendation schema validates correctly"""
+    try:
+        from api.WineCellarAgent.models import (
+            CriticalityLevel,
+            Recommendation,
+            RecommendationPlan,
+            WineBuyingAspect,
+            WineBuyingParameter,
+        )
+
+        plan = RecommendationPlan(
+            recommendations=[
+                Recommendation(
+                    title="Add Northern Italian Reds",
+                    description="Improve geographic balance with structured purchases from Italy.",
+                    criticality=CriticalityLevel.HIGH,
+                    price_range="25-45 EUR",
+                    quantity_to_buy=6,
+                    parameters=[
+                        WineBuyingParameter(
+                            aspect=WineBuyingAspect.COUNTRY,
+                            target="Italy",
+                            rationale="The cellar is underrepresented in Italian wines",
+                        ),
+                        WineBuyingParameter(
+                            aspect=WineBuyingAspect.REGION,
+                            target="Piedmont or Veneto",
+                            rationale="These regions add strong stylistic diversity",
+                        ),
+                    ],
+                    suggested_action="Buy six bottles from a balanced mix of Italian producers",
+                    estimated_impact="Better regional diversity and more food-pairing options",
+                )
+            ]
+        )
+
+        recommendation = plan.recommendations[0]
+        assert recommendation.quantity_to_buy == 6
+        assert recommendation.price_range == "25-45 EUR"
+        assert recommendation.parameters[0].aspect == WineBuyingAspect.COUNTRY
+        assert recommendation.parameters[1].aspect == WineBuyingAspect.REGION
+        assert recommendation.criticality == CriticalityLevel.HIGH
+
+        print("✓ Structured recommendation models validated successfully")
+        return True
+    except Exception as e:
+        print(f"✗ Structured model validation failed: {e}")
         return False
 
 
@@ -110,6 +168,7 @@ async def test_full_analysis():
         for i, rec in enumerate(analysis.recommendations, 1):
             print(f"\n{i}. {rec.title}")
             print(f"   Criticality: {rec.criticality.value}")
+            print(f"   Price range: {rec.price_range}")
             print(f"   Description: {rec.description}")
             print(f"   Suggested Action: {rec.suggested_action}")
             print(f"   Estimated Impact: {rec.estimated_impact}")
@@ -143,6 +202,7 @@ async def main():
     tests = [
         ("Environment Variables", check_env),
         ("Module Imports", test_basic_import),
+        ("Structured Models", test_structured_models),
         ("Database Connection", test_database_connection),
         ("Full Analysis", test_full_analysis),
     ]

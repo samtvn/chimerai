@@ -1,13 +1,13 @@
 """Orchestrator Agent for wine cellar management"""
-import asyncio
 from langgraph.graph import StateGraph, END
 from .state import OrchestratorState
-from api.WineCellarAgent.service import WineCellarAnalysisService
 from .event_manager import event_manager, Event
 from .events import AnalysisRunEvent, WineSoldEvent
 import uuid
 from uuid import UUID
 from ..database.repositories.cellar_repository import CellarRepository
+from .models import MarketSearchCriteria, RecommendationSearchPlan, OrchestratorSearchPlan
+from api.WineCellarAgent.models import CriticalityLevel, WineBuyingAspect, Recommendation
 
 
 class CellarOrchestrator:
@@ -27,8 +27,8 @@ class CellarOrchestrator:
 
         workflow.add_node("decide_entry", self._decide_entry_point)
         workflow.add_node("analyze_cellar", self._analyze_cellar)
-        workflow.add_node("evaluate_gaps", self._evaluate_gaps)
-        workflow.add_node("decide_market_analysis", self._decide_market_analysis)
+        workflow.add_node("build_search_plan", self._build_search_plan)
+        workflow.add_node("run_market_analysis", self._run_market_analysis)
 
         workflow.set_entry_point("decide_entry")
 
@@ -40,9 +40,16 @@ class CellarOrchestrator:
                 "end": END,
             },
         )
-        workflow.add_edge("analyze_cellar", "evaluate_gaps")
-        workflow.add_edge("evaluate_gaps", "decide_market_analysis")
-        workflow.add_edge("decide_market_analysis", END)
+        workflow.add_edge("analyze_cellar", "build_search_plan")
+        workflow.add_conditional_edges(
+            "build_search_plan",
+            self._should_run_market_analysis,
+            {
+                "market_analysis": "run_market_analysis",
+                "end": END,
+            },
+        )
+        workflow.add_edge("run_market_analysis", END)
 
         return workflow.compile()
 
@@ -71,6 +78,8 @@ class CellarOrchestrator:
     async def _analyze_cellar(self, state: OrchestratorState) -> OrchestratorState:
         """Run the wine cellar analysis"""
         print("[Orchestrator] Running cellar analysis...")
+        from api.WineCellarAgent.service import WineCellarAnalysisService
+
         service = WineCellarAnalysisService()
         analysis = await service.analyze_cellar(self.cellar_repo, user_id=self.user_id)
         state["cellar_analysis"] = analysis
@@ -85,70 +94,149 @@ class CellarOrchestrator:
 
         return state
 
-    async def _evaluate_gaps(self, state: OrchestratorState) -> OrchestratorState:
-        """Evaluate gaps in the cellar based on weaknesses"""
+    def _criticality_rank(self, criticality: CriticalityLevel) -> int:
+        """Return the execution order for a recommendation criticality."""
+        return {
+            CriticalityLevel.CRITICAL: 1,
+            CriticalityLevel.HIGH: 2,
+            CriticalityLevel.MEDIUM: 3,
+            CriticalityLevel.LOW: 4,
+        }.get(criticality, 4)
+
+    def _should_call_market_analysis(self, recommendation: Recommendation, priority_rank: int) -> bool:
+        """Decide whether a recommendation should trigger market analysis."""
+        if priority_rank == 1:
+            return True
+        return recommendation.criticality in {CriticalityLevel.CRITICAL, CriticalityLevel.HIGH}
+
+    def _build_criteria(self, recommendation: Recommendation) -> MarketSearchCriteria:
+        """Convert a structured recommendation into search-only criteria."""
+        criteria_values: dict[str, str] = {"price_range": recommendation.price_range}
+
+        for parameter in recommendation.parameters:
+            if parameter.aspect == WineBuyingAspect.COLOUR and "colour" not in criteria_values:
+                criteria_values["colour"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.COUNTRY and "country" not in criteria_values:
+                criteria_values["country"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.REGION and "region" not in criteria_values:
+                criteria_values["region"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.SUB_REGION and "sub_region" not in criteria_values:
+                criteria_values["sub_region"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.GRAPE_VARIETY and "grape_variety" not in criteria_values:
+                criteria_values["grape_variety"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.STYLE and "style" not in criteria_values:
+                criteria_values["style"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.VINTAGE and "vintage" not in criteria_values:
+                criteria_values["vintage"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.ALCOHOL_LEVEL and "alcohol_level" not in criteria_values:
+                criteria_values["alcohol_level"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.TANNIN and "tannin" not in criteria_values:
+                criteria_values["tannin"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.ACIDITY and "acidity" not in criteria_values:
+                criteria_values["acidity"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.SWEETNESS and "sweetness" not in criteria_values:
+                criteria_values["sweetness"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.BODY and "body" not in criteria_values:
+                criteria_values["body"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.AGEING_POTENTIAL and "ageing_potential" not in criteria_values:
+                criteria_values["ageing_potential"] = parameter.target
+            elif parameter.aspect == WineBuyingAspect.FOOD_PAIRING and "food_pairing" not in criteria_values:
+                criteria_values["food_pairing"] = parameter.target
+
+        return MarketSearchCriteria(**criteria_values)
+
+    def _should_run_market_analysis(self, state: OrchestratorState) -> str:
+        """Route to market analysis if any recommendation requires it."""
+        if state.get("needs_market_analysis"):
+            return "market_analysis"
+        return "end"
+
+    async def _build_search_plan(self, state: OrchestratorState) -> OrchestratorState:
+        """Convert cellar recommendations into a priority-ordered market search plan."""
         try:
             analysis = state.get("cellar_analysis")
             if not analysis:
-                state["error"] = "No analysis available to evaluate"
+                state["error"] = "No analysis available to build a search plan"
                 return state
 
-            print("\n[Orchestrator] Evaluating cellar gaps...")
+            print("\n[Orchestrator] Building priority-ordered search plan...")
 
-            # Extract missing categories from weaknesses and recommendations
-            missing_categories = []
+            ordered_recommendations = sorted(
+                analysis.recommendations,
+                key=lambda rec: self._criticality_rank(rec.criticality),
+            )
 
-            # Check weaknesses for patterns
-            for weakness in analysis.weaknesses:
-                weakness_lower = weakness.lower()
-                if "new world" in weakness_lower or "geographic" in weakness_lower:
-                    missing_categories.append("New World wines")
-                if "light" in weakness_lower or "fresh" in weakness_lower:
-                    missing_categories.append("Light/fresh reds")
-                if "fortified" in weakness_lower or "sherry" in weakness_lower:
-                    missing_categories.append("Fortified wines")
-                if "varietal" in weakness_lower or "monoculture" in weakness_lower:
-                    missing_categories.append("Diverse varietals")
-
-            # Check recommendations for action items
-            for rec in analysis.recommendations:
-                if rec.criticality.value in ["high", "critical"]:
-                    missing_categories.append(rec.title)
-                elif rec.criticality.value == "medium":
-                    missing_categories.append(rec.title)
-
-            # Deduplicate
-            missing_categories = list(dict.fromkeys(missing_categories))
-
-            state["missing_wine_categories"] = missing_categories
-
-            # If there are gaps, we need market analysis
-            if missing_categories:
-                state["needs_market_analysis"] = True
-                print(f"\n[Orchestrator] Found {len(missing_categories)} wine categories to address:")
-                for cat in missing_categories:
-                    print(f"  - {cat}")
-            else:
-                print("\n[Orchestrator] Cellar is well-balanced, no gaps detected")
+            if not ordered_recommendations:
+                state["search_plan"] = None
+                state["missing_wine_categories"] = []
                 state["needs_market_analysis"] = False
+                state["should_call_market_analysis"] = False
+                print("\n[Orchestrator] No recommendations available to build a search plan")
+                return state
+
+            search_recommendations = []
+            for index, recommendation in enumerate(ordered_recommendations, 1):
+                search_recommendations.append(
+                    RecommendationSearchPlan(
+                        title=recommendation.title,
+                        criticality=recommendation.criticality,
+                        priority_rank=index,
+                        should_call_market_analysis=self._should_call_market_analysis(
+                            recommendation,
+                            index,
+                        ),
+                        quantity_to_buy=recommendation.quantity_to_buy,
+                        criteria=self._build_criteria(recommendation),
+                    )
+                )
+
+            search_plan = OrchestratorSearchPlan(recommendations=search_recommendations)
+            state["search_plan"] = search_plan
+            state["missing_wine_categories"] = [
+                item.title for item in search_recommendations if item.should_call_market_analysis
+            ]
+            state["needs_market_analysis"] = any(
+                item.should_call_market_analysis for item in search_recommendations
+            )
+            state["should_call_market_analysis"] = state["needs_market_analysis"]
+
+            print(f"\n[Orchestrator] Prepared {len(search_recommendations)} search items:")
+            for item in search_recommendations:
+                decision = "call market analysis" if item.should_call_market_analysis else "skip market analysis"
+                print(f"  - #{item.priority_rank} {item.title} -> {decision}")
 
             return state
 
         except Exception as e:
-            state["error"] = f"Gap evaluation failed: {str(e)}"
+            state["error"] = f"Search plan generation failed: {str(e)}"
             return state
 
-    async def _decide_market_analysis(self, state: OrchestratorState) -> OrchestratorState:
-        """Decide whether to trigger market analysis"""
+    async def _run_market_analysis(self, state: OrchestratorState) -> OrchestratorState:
+        """Call the market analysis agent for selected recommendations."""
         try:
-            if state.get("needs_market_analysis"):
-                state["should_call_market_analysis"] = True
-                print("\n>>> Call the wine market analysis")
-            else:
-                print("\n[Orchestrator] No significant gaps detected. Market analysis not required.")
+            search_plan = state.get("search_plan")
+            if not search_plan:
+                state["market_analysis_results"] = []
+                return state
+
+            from api.MarketAnalysisAgent.service import MarketAnalysisService
+
+            results = []
+            for item in search_plan.recommendations:
+                if not item.should_call_market_analysis:
+                    continue
+                result = await MarketAnalysisService.analyze_recommendation(
+                    criteria=item.criteria.model_dump(),
+                    quantity=item.quantity_to_buy,
+                    recommendation_title=item.title,
+                )
+                results.append(result)
+
+            state["market_analysis_results"] = results
+            return state
         except Exception as e:
-            state["error"] = f"Decision making failed: {str(e)}"
-        return state
+            state["error"] = f"Market analysis failed: {str(e)}"
+            return state
 
     async def run(self) -> OrchestratorState:
         """Execute the orchestrator workflow"""
@@ -157,6 +245,8 @@ class CellarOrchestrator:
                 "needs_market_analysis": False,
                 "missing_wine_categories": [],
                 "should_call_market_analysis": False,
+                "search_plan": None,
+                "market_analysis_results": [],
             }
             result = await self.graph.ainvoke(initial_state)
             return result
