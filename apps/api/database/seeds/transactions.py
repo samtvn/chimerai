@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from uuid6 import uuid7
+from datetime import datetime, timezone, timedelta
 from ..database import AsyncSessionLocal
 from ..models.transactions import Transaction, TransactionType
 from ..models.users import User
@@ -31,6 +32,7 @@ async def seed_transactions():
             return
 
         transactions = []
+        base_date = datetime.now(timezone.utc) - timedelta(days=30)
         
         # First, create PURCHASE transactions for the first 6 wines
         for idx in range(min(6, len(wines))):
@@ -45,6 +47,7 @@ async def seed_transactions():
                     quantity=quantity,
                     purchase_price=wine.market_price,
                     type=TransactionType.PURCHASE,
+                    transaction_date=base_date + timedelta(days=idx),
                 )
             )
         
@@ -61,6 +64,7 @@ async def seed_transactions():
                     quantity=quantity,
                     purchase_price=None,
                     type=TransactionType.SALE,
+                    transaction_date=base_date + timedelta(days=7 + idx),
                 )
             )
 

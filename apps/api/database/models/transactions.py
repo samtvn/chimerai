@@ -3,6 +3,7 @@ from uuid import UUID
 from uuid6 import uuid7
 from sqlmodel import Field, Relationship, SQLModel
 from enum import Enum
+from datetime import datetime, timezone
 
 if TYPE_CHECKING:
     from .cellar import Cellar
@@ -26,6 +27,7 @@ class Transaction(SQLModel, table=True):
     quantity: int
     purchase_price: Optional[float] = None
     type: TransactionType
+    transaction_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "User" = Relationship(back_populates="transactions")
     wine: "Wine" = Relationship(back_populates="transactions")
