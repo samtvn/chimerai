@@ -3,6 +3,7 @@ from .user_repository import UserRepository
 from .wine_repository import WineRepository
 from .transactions_repository import TransactionRepository
 from .cellar_repository import CellarRepository
+from .alert_repository import AlertRepository
 
 __all__ = [
     "BaseRepository",
@@ -10,4 +11,5 @@ __all__ = [
     "WineRepository",
     "TransactionRepository",
     "CellarRepository",
+    "AlertRepository",
 ]

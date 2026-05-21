@@ -1,6 +1,6 @@
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
+from typing import List
 from uuid import UUID
 
 from ..models.transactions import Transaction, TransactionType
@@ -22,14 +22,20 @@ class TransactionRepository(BaseRepository[Transaction]):
     async def get_by_user_id(self, user_id: UUID, limit: int = 100) -> List[Transaction]:
         """Get all transactions for a user"""
         result = await self.session.execute(
-            select(Transaction).where(Transaction.user_id == user_id).limit(limit)
+            select(Transaction)
+            .where(Transaction.user_id == user_id)
+            .order_by(Transaction.transaction_date.desc())
+            .limit(limit)
         )
         return result.scalars().all()
 
     async def get_by_type(self, transaction_type: TransactionType, limit: int = 100) -> List[Transaction]:
         """Get transactions by type (PURCHASE or SALE)"""
         result = await self.session.execute(
-            select(Transaction).where(Transaction.type == transaction_type).limit(limit)
+            select(Transaction)
+            .where(Transaction.type == transaction_type)
+            .order_by(Transaction.transaction_date.desc())
+            .limit(limit)
         )
         return result.scalars().all()
 
@@ -43,6 +49,7 @@ class TransactionRepository(BaseRepository[Transaction]):
                     Transaction.type == TransactionType.PURCHASE
                 )
             )
+            .order_by(Transaction.transaction_date.desc())
             .limit(limit)
         )
         return result.scalars().all()
@@ -57,6 +64,7 @@ class TransactionRepository(BaseRepository[Transaction]):
                     Transaction.type == TransactionType.SALE
                 )
             )
+            .order_by(Transaction.transaction_date.desc())
             .limit(limit)
         )
         return result.scalars().all()

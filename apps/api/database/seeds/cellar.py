@@ -76,4 +76,4 @@ async def seed_cellars():
                     bottle.status = BottleStatus.SOLD
         
         await session.commit()
-        print(f"Seeded cellar entries with FIFO sales logic.")
+        print("Seeded cellar entries with FIFO sales logic.")

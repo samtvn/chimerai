@@ -1,6 +1,6 @@
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
+from typing import List
 from uuid import UUID
 
 from ..models.cellar import Cellar, BottleStatus
@@ -65,5 +65,12 @@ class CellarRepository(BaseRepository[Cellar]):
                 )
             )
             .limit(limit)
+        )
+        return result.scalars().all()
+
+    async def get_by_transaction(self, transaction_id: UUID) -> List[Cellar]:
+        """Get all cellar entries linked to a transaction"""
+        result = await self.session.execute(
+            select(Cellar).where(Cellar.transaction_id == transaction_id)
         )
         return result.scalars().all()

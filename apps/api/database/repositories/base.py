@@ -17,8 +17,8 @@ class BaseRepository(Generic[T]):
         """Raise error if trying to write in read-only mode"""
         if self.read_only:
             raise PermissionError(
-                f"Cannot perform write operation in read-only mode. "
-                f"Use get_db() instead of get_read_db() for write operations."
+                "Cannot perform write operation in read-only mode. "
+                "Use get_db() instead of get_read_db() for write operations."
             )
 
     async def get_by_id(self, id) -> Optional[T]:
