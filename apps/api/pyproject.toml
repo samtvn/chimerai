@@ -16,6 +16,7 @@ dependencies = [
     "langchain-postgres>=0.0.17",
     "langgraph>=1.1.10",
     "psycopg[binary,pool]>=3.3.4",
+    "sse-starlette>=3.4.4",
 ]
 
 [project.optional-dependencies]
