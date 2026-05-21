@@ -40,11 +40,26 @@ Table cellar {
   wine_id uuid [ref: > wines.id]
   transaction_id uuid [ref: > transactions.id]
   status bottleStatus
-  racklocation string
 }
 
 Table users {
   id uuid [pk, default: `uuidv7()`]
   firstname varchar [not null]
   lastname varchar [not null]
+}
+
+Enum severities {
+  error
+  warning
+  info
+}
+
+Table alerts {
+  id uuid [pk, default: `uuidv7()`]
+  user_id uuid [ref: > users.id]
+  message string
+  severity severities
+  source_agent string
+  read bool
+  created_at datetime
 }
