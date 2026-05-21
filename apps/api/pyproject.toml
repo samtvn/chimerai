@@ -18,9 +18,7 @@ dependencies = [
     "langchain-postgres>=0.0.17",
     "langgraph>=1.1.10",
     "psycopg[binary,pool]>=3.3.4",
-    "langchain>=1.2.18",
-    "langchain-google-genai>=4.2.2",
-    "dotenv>=0.9.9",
+    "sse-starlette>=3.4.4",
 ]
 
 [project.optional-dependencies]
