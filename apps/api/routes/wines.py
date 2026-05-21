@@ -1,0 +1,75 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, distinct
+from typing import Optional
+
+from database.dependencies import get_read_db, get_demo_user_id
+from database.repositories.wine_repository import WineRepository
+from database.models.wines import Wine
+
+router = APIRouter(prefix="/api", tags=["inventory"])
+
+
+@router.get("/wines")
+async def list_wines(
+    color: Optional[str] = None,
+    region: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = Query(100, le=500),
+    offset: int = 0,
+    db: AsyncSession = Depends(get_read_db),
+):
+    query = select(Wine)
+    if color:
+        query = query.where(Wine.color == color)
+    if region:
+        query = query.where(Wine.region == region)
+    if search:
+        pattern = f"%{search}%"
+        query = query.where(
+            (Wine.name.ilike(pattern))
+            | (Wine.producer.ilike(pattern))
+            | (Wine.region.ilike(pattern))
+            | (Wine.grape_variety.ilike(pattern))
+        )
+    query = query.order_by(Wine.name).limit(limit).offset(offset)
+    result = await db.execute(query)
+    wines = result.scalars().all()
+
+    count_q = select(func.count(Wine.id))
+    if color:
+        count_q = count_q.where(Wine.color == color)
+    if region:
+        count_q = count_q.where(Wine.region == region)
+    if search:
+        pattern = f"%{search}%"
+        count_q = count_q.where(
+            (Wine.name.ilike(pattern))
+            | (Wine.producer.ilike(pattern))
+            | (Wine.region.ilike(pattern))
+            | (Wine.grape_variety.ilike(pattern))
+        )
+    total = (await db.execute(count_q)).scalar() or 0
+
+    return {"wines": wines, "total": total}
+
+
+@router.get("/wines/{wine_id}")
+async def get_wine(wine_id: int, db: AsyncSession = Depends(get_read_db)):
+    repo = WineRepository(db, read_only=True)
+    wine = await repo.get_by_id(wine_id)
+    if not wine:
+        raise HTTPException(404, "Wine not found")
+    return wine
+
+
+@router.get("/wines/filters/regions")
+async def get_regions(db: AsyncSession = Depends(get_read_db)):
+    result = await db.execute(select(distinct(Wine.region)).order_by(Wine.region))
+    return {"regions": [r for r in result.scalars().all() if r]}
+
+
+@router.get("/wines/filters/colors")
+async def get_colors(db: AsyncSession = Depends(get_read_db)):
+    result = await db.execute(select(distinct(Wine.color)).order_by(Wine.color))
+    return {"colors": [c for c in result.scalars().all() if c]}
