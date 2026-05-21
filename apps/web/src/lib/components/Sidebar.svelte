@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LayoutDashboard, BottleWine, Scroll, Info } from "@lucide/svelte";
+  import { LayoutDashboard, BottleWine, Scroll, Info, History } from "@lucide/svelte";
   import Logo from "./Logo.svelte";
 </script>
 
@@ -17,6 +17,7 @@
         <a href="/"><LayoutDashboard size="14" /> Dashboard</a>
       </li>
       <li><a href="/inventory"><BottleWine size="14" /> Inventory</a></li>
+      <li><a href="/transactions"><History size="14" /> Transactions</a></li>
       <li><a href="/card"><Scroll size="14" /> Wine Card</a></li>
       <li><a href="/recommendations"><Info size="14" /> Recommendations</a></li>
     </ul>
