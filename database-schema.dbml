@@ -1,0 +1,50 @@
+Table wines {
+  id int
+  producer string
+  name string
+  region string
+  country string
+  appellation string
+  vintage int
+  grape_variety string
+  color string
+  alcohol float
+  drink_from int
+  drink_until int
+  market_price float
+}
+
+Enum transactionType {
+  sale
+  purchase
+}
+
+Table transactions {
+  id uuid
+  wine_id uuid [ref: > wines.id]
+  user_id uuid [ref: > users.id]
+  quantity int
+  purchase_price float
+  type transactionType
+  date datetime
+}
+
+Enum bottleStatus {
+  in_cellar
+  open
+  sold
+}
+
+Table cellar {
+  user_id uuid [ref: > users.id]
+  wine_id uuid [ref: > wines.id]
+  transaction_id uuid [ref: > transactions.id]
+  status bottleStatus
+  racklocation string
+}
+
+Table users {
+  id uuid [pk, default: `uuidv7()`]
+  firstname varchar [not null]
+  lastname varchar [not null]
+}
