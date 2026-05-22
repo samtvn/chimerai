@@ -167,7 +167,6 @@ class CellarOrchestrator:
 
         return (
             f"Criticality is {criticality_label}; market fit is a {fit_note}. "
-            "Use criticality as the urgency signal for the purchase decision."
         )
 
     def _build_criteria(self, recommendation: Recommendation) -> MarketSearchCriteria:

@@ -6,10 +6,21 @@ import re
 from typing import Optional, Tuple
 
 from sqlalchemy import and_, select
+from pydantic import BaseModel, Field
 
 from .models import MarketAnalysisCriteria, MarketAnalysisResult
 from database.database import AsyncReadSessionLocal
 from database.models.wines import Wine
+from llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
+
+
+class WineSelection(BaseModel):
+    """LLM-selected wine choice from candidate list."""
+
+    wine_id: int = Field(..., description="Wine ID chosen from the candidate list")
+    detailed_explanation: str = Field(
+        ..., description="Why this wine is a great fit for the criteria"
+    )
 
 
 class MarketAnalysisAgent:
@@ -32,14 +43,44 @@ class MarketAnalysisAgent:
             wines = result.scalars().all()
 
             if not wines:
-                fallback = await session.execute(select(Wine).limit(1))
-                wine = fallback.scalars().first()
-                if not wine:
+                fallback = await session.execute(select(Wine).limit(25))
+                wines = fallback.scalars().all()
+                if not wines:
                     raise ValueError("No wines available in the database")
-                fit_score, fit_notes = 0.0, ["No matching wines found, fallback selection used"]
-            else:
-                wine = wines[0]
+
+            candidates = []
+            for wine in wines:
                 fit_score, fit_notes = self._score_fit(criteria, wine)
+                candidates.append(
+                    {
+                        "wine": wine,
+                        "fit_score": fit_score,
+                        "fit_notes": fit_notes,
+                    }
+                )
+
+            selection = await self._choose_wine_with_llm(
+                criteria,
+                recommendation_title,
+                candidates,
+            )
+
+            selected = next(
+                (item for item in candidates if item["wine"].id == selection.wine_id),
+                None,
+            )
+            if not selected:
+                selected = max(candidates, key=lambda item: item["fit_score"])
+                selection = WineSelection(
+                    wine_id=selected["wine"].id,
+                    detailed_explanation=(
+                        "LLM selection was invalid; choosing the highest fit-score candidate instead."
+                    ),
+                )
+
+            wine = selected["wine"]
+            fit_score = selected["fit_score"]
+            fit_notes = selected["fit_notes"]
 
             price_per_bottle = wine.market_price
             total_price = None
@@ -62,8 +103,50 @@ class MarketAnalysisAgent:
                 total_price=total_price,
                 fit_score=fit_score,
                 fit_notes=fit_notes,
+                detailed_explanation=selection.detailed_explanation,
                 criteria=criteria,
             )
+
+    async def _choose_wine_with_llm(
+        self,
+        criteria: MarketAnalysisCriteria,
+        recommendation_title: str,
+        candidates: list[dict],
+    ) -> WineSelection:
+        """Use the LLM to pick the best wine from candidates."""
+        candidate_summary = []
+        for item in candidates:
+            wine = item["wine"]
+            candidate_summary.append(
+                {
+                    "wine_id": wine.id,
+                    "name": wine.name,
+                    "producer": wine.producer,
+                    "country": wine.country,
+                    "region": wine.region,
+                    "sub_region": wine.appellation,
+                    "vintage": wine.vintage,
+                    "grape_variety": wine.grape_variety,
+                    "colour": wine.color,
+                    "price_per_bottle": wine.market_price,
+                    "fit_score": item["fit_score"],
+                    "fit_notes": item["fit_notes"],
+                }
+            )
+
+        prompt = (
+            "You are selecting the best wine for a market recommendation. "
+            "Choose exactly one wine_id from the candidate list and explain why it fits.\n\n"
+            f"Recommendation title: {recommendation_title}\n"
+            f"Criteria: {criteria.model_dump()}\n\n"
+            "Candidates:\n"
+            f"{candidate_summary}\n\n"
+            "Return a short but detailed explanation focusing on how the selection aligns "
+            "with the criteria and any tradeoffs."
+        )
+
+        structured_llm = gemini_flash_3_1_lite.with_structured_output(WineSelection)
+        return await structured_llm.ainvoke(prompt)
 
     def _build_filters(self, criteria: MarketAnalysisCriteria) -> list:
         filters = []
