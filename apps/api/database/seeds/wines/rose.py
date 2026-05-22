@@ -1,4 +1,5 @@
 from sqlalchemy import select
+
 from ...database import AsyncSessionLocal
 from ...models.wines import Wine
 
@@ -6,7 +7,7 @@ from ...models.wines import Wine
 async def seed_rose():
     async with AsyncSessionLocal() as session:
         # Skip if already seeded
-        result = await session.execute(select(Wine).where(Wine.color == "rose").limit(1))
+        result = await session.execute(select(Wine).where(Wine.color == "rosé").limit(1))
         if result.scalar_one_or_none():
             print("Rosé wines already seeded, skipping.")
             return
@@ -20,7 +21,7 @@ async def seed_rose():
                 appellation="Côtes de Provence",
                 vintage=2023,
                 grape_variety="Grenache Cinsault Syrah",
-                color="rose",
+                color="rosé",
                 alcohol=13.00,
                 drink_from=2023,
                 drink_to=2026,
@@ -35,7 +36,7 @@ async def seed_rose():
                 appellation="Côtes de Provence",
                 vintage=2023,
                 grape_variety="Grenache Blend",
-                color="rose",
+                color="rosé",
                 alcohol=13.00,
                 drink_from=2023,
                 drink_to=2026,
@@ -50,7 +51,7 @@ async def seed_rose():
                 appellation="Côtes de Provence",
                 vintage=2023,
                 grape_variety="Grenache Blend",
-                color="rose",
+                color="rosé",
                 alcohol=13.00,
                 drink_from=2023,
                 drink_to=2026,
@@ -65,7 +66,7 @@ async def seed_rose():
                 appellation="Côtes de Provence",
                 vintage=2022,
                 grape_variety="Grenache Blend",
-                color="rose",
+                color="rosé",
                 alcohol=13.00,
                 drink_from=2023,
                 drink_to=2027,
@@ -80,7 +81,7 @@ async def seed_rose():
                 appellation="Côtes de Provence",
                 vintage=2023,
                 grape_variety="Grenache Blend",
-                color="rose",
+                color="rosé",
                 alcohol=13.00,
                 drink_from=2023,
                 drink_to=2026,

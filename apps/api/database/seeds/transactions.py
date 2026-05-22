@@ -1,3 +1,4 @@
+import random
 from sqlalchemy import select
 from uuid6 import uuid7
 from datetime import datetime, timezone, timedelta
@@ -9,63 +10,131 @@ from ..models.wines import Wine
 
 async def seed_transactions():
     async with AsyncSessionLocal() as session:
-        # Skip if already seeded
         result = await session.execute(select(Transaction).limit(1))
         if result.scalar_one_or_none():
             print("Transactions already seeded, skipping.")
             return
 
-        # Get the demo user
         user_result = await session.execute(select(User).where(User.username == "chimerai_bistro"))
         user = user_result.scalar_one_or_none()
         if not user:
             print("Demo user not found, skipping transaction seeding.")
             return
 
-        # Get some wines to create transactions with
-        wines_result = await session.execute(select(Wine).limit(10))
+        wines_result = await session.execute(select(Wine))
         wines = wines_result.scalars().all()
         if not wines:
             print("No wines found, skipping transaction seeding.")
             return
 
         transactions = []
-        base_date = datetime.now(timezone.utc) - timedelta(days=30)
+        inventory: dict[int, int] = {}
+        base_date = datetime.now(timezone.utc) - timedelta(days=90)
 
-        # First, create PURCHASE transactions for the first 6 wines
-        for idx in range(min(6, len(wines))):
-            wine = wines[idx]
-            quantity = 2 + (idx % 3)  # 2-4 bottles per purchase
+        target_transactions = 200
+        target_cellar = 60
+        current_cellar = 0
+        day = 0
+        tx_count = 0
 
-            transactions.append(
-                Transaction(
-                    id=uuid7(),
-                    wine_id=wine.id,
-                    user_id=user.id,
-                    quantity=quantity,
-                    purchase_price=wine.market_price,
-                    type=TransactionType.PURCHASE,
-                    transaction_date=base_date + timedelta(days=idx),
+        random.seed(42)
+
+        while tx_count < target_transactions:
+            wine = random.choice(wines)
+            wine_id = wine.id
+            available = inventory.get(wine_id, 0)
+            date = base_date + timedelta(days=day, hours=random.randint(8, 20))
+
+            if current_cellar <= target_cellar - 3 or available == 0:
+                quantity = random.randint(2, 6)
+                transactions.append(
+                    Transaction(
+                        id=uuid7(),
+                        wine_id=wine_id,
+                        user_id=user.id,
+                        quantity=quantity,
+                        purchase_price=wine.market_price,
+                        type=TransactionType.PURCHASE,
+                        transaction_date=date,
+                    )
                 )
-            )
-
-        # Then, create SALE transactions for some of the purchased wines (FIFO will apply)
-        for idx in range(min(4, len(wines))):
-            wine = wines[idx]
-            quantity = 1 + (idx % 2)  # 1-2 bottles per sale
-
-            transactions.append(
-                Transaction(
-                    id=uuid7(),
-                    wine_id=wine.id,
-                    user_id=user.id,
-                    quantity=quantity,
-                    purchase_price=None,
-                    type=TransactionType.SALE,
-                    transaction_date=base_date + timedelta(days=7 + idx),
+                inventory[wine_id] = available + quantity
+                current_cellar += quantity
+                tx_count += 1
+            elif current_cellar >= target_cellar + 10 and available >= 1:
+                quantity = min(random.randint(1, 3), available)
+                transactions.append(
+                    Transaction(
+                        id=uuid7(),
+                        wine_id=wine_id,
+                        user_id=user.id,
+                        quantity=quantity,
+                        purchase_price=None,
+                        type=TransactionType.SALE,
+                        transaction_date=date,
+                    )
                 )
-            )
+                inventory[wine_id] = available - quantity
+                current_cellar -= quantity
+                tx_count += 1
+            elif available >= 1:
+                if random.random() < 0.4 and current_cellar > target_cellar:
+                    quantity = min(random.randint(1, 3), available)
+                    transactions.append(
+                        Transaction(
+                            id=uuid7(),
+                            wine_id=wine_id,
+                            user_id=user.id,
+                            quantity=quantity,
+                            purchase_price=None,
+                            type=TransactionType.SALE,
+                            transaction_date=date,
+                        )
+                    )
+                    inventory[wine_id] = available - quantity
+                    current_cellar -= quantity
+                    tx_count += 1
+                else:
+                    quantity = random.randint(2, 5)
+                    transactions.append(
+                        Transaction(
+                            id=uuid7(),
+                            wine_id=wine_id,
+                            user_id=user.id,
+                            quantity=quantity,
+                            purchase_price=wine.market_price,
+                            type=TransactionType.PURCHASE,
+                            transaction_date=date,
+                        )
+                    )
+                    inventory[wine_id] = available + quantity
+                    current_cellar += quantity
+                    tx_count += 1
+            else:
+                quantity = random.randint(2, 5)
+                transactions.append(
+                    Transaction(
+                        id=uuid7(),
+                        wine_id=wine_id,
+                        user_id=user.id,
+                        quantity=quantity,
+                        purchase_price=wine.market_price,
+                        type=TransactionType.PURCHASE,
+                        transaction_date=date,
+                    )
+                )
+                inventory[wine_id] = available + quantity
+                current_cellar += quantity
+                tx_count += 1
+
+            day += 1
 
         session.add_all(transactions)
         await session.commit()
-        print(f"Seeded {len(transactions)} transactions.")
+
+        purchase_count = sum(1 for t in transactions if t.type == TransactionType.PURCHASE)
+        sale_count = sum(1 for t in transactions if t.type == TransactionType.SALE)
+        print(
+            f"Seeded {len(transactions)} transactions ({purchase_count} purchases, {sale_count} sales)."
+        )
+        print(f"Net bottles in cellar: {current_cellar}")
