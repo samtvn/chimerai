@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.dependencies import get_read_db, get_demo_user_id
-from database.repositories.wine_repository import WineRepository
-from database.repositories.transactions_repository import TransactionRepository
+from database.dependencies import get_demo_user_id, get_read_db
 from database.repositories.cellar_repository import CellarRepository
+from database.repositories.transactions_repository import TransactionRepository
+from database.repositories.wine_repository import WineRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
@@ -40,8 +40,10 @@ async def cellar_summary(db: AsyncSession = Depends(get_read_db)):
     sold = await cellar_repo.get_user_sold_bottles(user_id, limit=1000)
     txn_repo = TransactionRepository(db, read_only=True)
     purchases = await txn_repo.get_user_purchases(user_id, limit=1000)
-    for p in purchases:
-        purchase_value += (p.purchase_price or 0) * p.quantity
+    purchase_price_map = {p.id: (p.price or 0) for p in purchases}
+
+    for c in in_stock:
+        purchase_value += purchase_price_map.get(c.transaction_id, 0)
 
     region_balance = [
         {"region": r, "pct": round(cnt / total_bottles * 100) if total_bottles else 0}

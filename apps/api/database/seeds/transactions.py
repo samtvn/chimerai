@@ -1,7 +1,9 @@
 import random
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 from uuid6 import uuid7
-from datetime import datetime, timezone, timedelta
+
 from ..database import AsyncSessionLocal
 from ..models.transactions import Transaction, TransactionType
 from ..models.users import User
@@ -53,7 +55,7 @@ async def seed_transactions():
                         wine_id=wine_id,
                         user_id=user.id,
                         quantity=quantity,
-                        purchase_price=wine.market_price,
+                        price=wine.market_price + random.uniform(-5, 5),
                         type=TransactionType.PURCHASE,
                         transaction_date=date,
                     )
@@ -69,7 +71,7 @@ async def seed_transactions():
                         wine_id=wine_id,
                         user_id=user.id,
                         quantity=quantity,
-                        purchase_price=None,
+                        price=wine.market_price + random.uniform(-5, 5),
                         type=TransactionType.SALE,
                         transaction_date=date,
                     )
@@ -86,7 +88,7 @@ async def seed_transactions():
                             wine_id=wine_id,
                             user_id=user.id,
                             quantity=quantity,
-                            purchase_price=None,
+                            price=wine.market_price + random.uniform(-5, 5),
                             type=TransactionType.SALE,
                             transaction_date=date,
                         )
@@ -102,7 +104,7 @@ async def seed_transactions():
                             wine_id=wine_id,
                             user_id=user.id,
                             quantity=quantity,
-                            purchase_price=wine.market_price,
+                            price=wine.market_price,
                             type=TransactionType.PURCHASE,
                             transaction_date=date,
                         )
@@ -118,7 +120,7 @@ async def seed_transactions():
                         wine_id=wine_id,
                         user_id=user.id,
                         quantity=quantity,
-                        purchase_price=wine.market_price,
+                        price=wine.market_price,
                         type=TransactionType.PURCHASE,
                         transaction_date=date,
                     )

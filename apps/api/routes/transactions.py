@@ -1,18 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
-from pydantic import BaseModel
-from datetime import datetime
-
-from database.dependencies import get_db, get_read_db, get_demo_user_id
-from database.repositories.wine_repository import WineRepository
-from database.repositories.transactions_repository import TransactionRepository
-from database.repositories.cellar_repository import CellarRepository
-from database.models.transactions import TransactionType
-from database.models.cellar import BottleStatus
-from agents.event_bus import event_bus, AgentEvent
 import json
+from datetime import datetime
+from typing import Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from agents.event_bus import AgentEvent, event_bus
+from database.dependencies import get_db, get_demo_user_id, get_read_db
+from database.models.cellar import BottleStatus
+from database.models.transactions import TransactionType
+from database.repositories.cellar_repository import CellarRepository
+from database.repositories.transactions_repository import TransactionRepository
+from database.repositories.wine_repository import WineRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
@@ -20,14 +21,14 @@ router = APIRouter(prefix="/api", tags=["inventory"])
 class TransactionCreate(BaseModel):
     wine_id: int
     quantity: int
-    purchase_price: float | None = None
+    price: float | None = None
     type: TransactionType
     date: datetime | None = None
 
 
 class TransactionUpdate(BaseModel):
     quantity: int | None = None
-    purchase_price: float | None = None
+    price: float | None = None
     type: TransactionType | None = None
     date: datetime | None = None
 
@@ -62,7 +63,7 @@ async def list_transactions(
                 "wine_region": wine.region if wine else "",
                 "wine_color": wine.color if wine else "",
                 "quantity": txn.quantity,
-                "purchase_price": txn.purchase_price,
+                "price": txn.price,
                 "type": txn.type.value,
                 "date": txn.transaction_date.isoformat() if txn.transaction_date else None,
             }
@@ -82,7 +83,7 @@ async def create_transaction(body: TransactionCreate, db: AsyncSession = Depends
         "wine_id": body.wine_id,
         "user_id": user_id,
         "quantity": body.quantity,
-        "purchase_price": body.purchase_price,
+        "price": body.price,
         "type": body.type,
     }
     if body.date:
@@ -135,7 +136,7 @@ async def create_transaction(body: TransactionCreate, db: AsyncSession = Depends
         "wine_id": txn.wine_id,
         "wine_name": wine.name,
         "quantity": txn.quantity,
-        "purchase_price": txn.purchase_price,
+        "price": txn.price,
         "type": txn.type.value,
         "date": txn.transaction_date.isoformat() if txn.transaction_date else None,
     }
@@ -162,8 +163,8 @@ async def update_transaction(
     update_data = {}
     if body.quantity is not None:
         update_data["quantity"] = body.quantity
-    if body.purchase_price is not None:
-        update_data["purchase_price"] = body.purchase_price
+    if body.price is not None:
+        update_data["price"] = body.price
     if body.type is not None:
         update_data["type"] = body.type
     if body.date is not None:
@@ -217,7 +218,7 @@ async def update_transaction(
         "wine_id": txn.wine_id,
         "wine_name": wine.name if wine else "Unknown",
         "quantity": txn.quantity,
-        "purchase_price": txn.purchase_price,
+        "price": txn.price,
         "type": txn.type.value,
         "date": txn.transaction_date.isoformat() if txn.transaction_date else None,
     }
