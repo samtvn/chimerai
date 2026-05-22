@@ -1,4 +1,5 @@
 """Orchestrator Agent for wine cellar management"""
+
 from langgraph.graph import StateGraph, END
 from .state import OrchestratorState
 from .event_manager import event_manager
@@ -148,7 +149,9 @@ class CellarOrchestrator:
             CriticalityLevel.LOW: 4,
         }.get(criticality, 4)
 
-    def _should_call_market_analysis(self, recommendation: Recommendation, priority_rank: int) -> bool:
+    def _should_call_market_analysis(
+        self, recommendation: Recommendation, priority_rank: int
+    ) -> bool:
         """Decide whether a recommendation should trigger market analysis."""
         return True
 
@@ -178,27 +181,45 @@ class CellarOrchestrator:
                 criteria_values["country"] = parameter.target
             elif parameter.aspect == WineBuyingAspect.REGION and "region" not in criteria_values:
                 criteria_values["region"] = parameter.target
-            elif parameter.aspect == WineBuyingAspect.SUB_REGION and "sub_region" not in criteria_values:
+            elif (
+                parameter.aspect == WineBuyingAspect.SUB_REGION
+                and "sub_region" not in criteria_values
+            ):
                 criteria_values["sub_region"] = parameter.target
-            elif parameter.aspect == WineBuyingAspect.GRAPE_VARIETY and "grape_variety" not in criteria_values:
+            elif (
+                parameter.aspect == WineBuyingAspect.GRAPE_VARIETY
+                and "grape_variety" not in criteria_values
+            ):
                 criteria_values["grape_variety"] = parameter.target
             elif parameter.aspect == WineBuyingAspect.STYLE and "style" not in criteria_values:
                 criteria_values["style"] = parameter.target
             elif parameter.aspect == WineBuyingAspect.VINTAGE and "vintage" not in criteria_values:
                 criteria_values["vintage"] = parameter.target
-            elif parameter.aspect == WineBuyingAspect.ALCOHOL_LEVEL and "alcohol_level" not in criteria_values:
+            elif (
+                parameter.aspect == WineBuyingAspect.ALCOHOL_LEVEL
+                and "alcohol_level" not in criteria_values
+            ):
                 criteria_values["alcohol_level"] = parameter.target
             elif parameter.aspect == WineBuyingAspect.TANNIN and "tannin" not in criteria_values:
                 criteria_values["tannin"] = parameter.target
             elif parameter.aspect == WineBuyingAspect.ACIDITY and "acidity" not in criteria_values:
                 criteria_values["acidity"] = parameter.target
-            elif parameter.aspect == WineBuyingAspect.SWEETNESS and "sweetness" not in criteria_values:
+            elif (
+                parameter.aspect == WineBuyingAspect.SWEETNESS
+                and "sweetness" not in criteria_values
+            ):
                 criteria_values["sweetness"] = parameter.target
             elif parameter.aspect == WineBuyingAspect.BODY and "body" not in criteria_values:
                 criteria_values["body"] = parameter.target
-            elif parameter.aspect == WineBuyingAspect.AGEING_POTENTIAL and "ageing_potential" not in criteria_values:
+            elif (
+                parameter.aspect == WineBuyingAspect.AGEING_POTENTIAL
+                and "ageing_potential" not in criteria_values
+            ):
                 criteria_values["ageing_potential"] = parameter.target
-            elif parameter.aspect == WineBuyingAspect.FOOD_PAIRING and "food_pairing" not in criteria_values:
+            elif (
+                parameter.aspect == WineBuyingAspect.FOOD_PAIRING
+                and "food_pairing" not in criteria_values
+            ):
                 criteria_values["food_pairing"] = parameter.target
 
         return MarketSearchCriteria(**criteria_values)
@@ -282,7 +303,11 @@ class CellarOrchestrator:
 
             print(f"\n[Orchestrator] Prepared {len(search_recommendations)} search items:")
             for item in search_recommendations:
-                decision = "call market analysis" if item.should_call_market_analysis else "skip market analysis"
+                decision = (
+                    "call market analysis"
+                    if item.should_call_market_analysis
+                    else "skip market analysis"
+                )
                 print(f"  - #{item.priority_rank} {item.title} -> {decision}")
 
             return state

@@ -1,4 +1,5 @@
 """Sales Analysis Agent using LangGraph."""
+
 from __future__ import annotations
 
 import json
@@ -117,13 +118,13 @@ class SalesAnalysisAgent:
         prompt = f"""Analyze sales vs stock trends and provide concise observations.
 
 Sales summary:
-{json.dumps(sales_data.get('summary', {}), indent=2)}
+{json.dumps(sales_data.get("summary", {}), indent=2)}
 
 Movers:
-{json.dumps(sales_data.get('movers', {}), indent=2)}
+{json.dumps(sales_data.get("movers", {}), indent=2)}
 
 Focus:
-{json.dumps(sales_data.get('focus', {}), indent=2)}
+{json.dumps(sales_data.get("focus", {}), indent=2)}
 
 Return 3-6 bullet-point observations that describe:
 - Whether sales are keeping up with stock
@@ -141,7 +142,9 @@ Return 3-6 bullet-point observations that describe:
             state["error"] = f"Trend analysis failed: {str(e)}"
             return state
 
-    async def _generate_recommendations(self, state: SalesAnalysisAgentState) -> SalesAnalysisAgentState:
+    async def _generate_recommendations(
+        self, state: SalesAnalysisAgentState
+    ) -> SalesAnalysisAgentState:
         trend_analysis = state.get("trend_analysis", "")
         summary = state.get("sales_data", {}).get("summary", {})
         focus = state.get("sales_data", {}).get("focus", {})
@@ -190,11 +193,7 @@ Rules:
             return str(val)
 
         trend_text = _to_text(trend_analysis)
-        trend_observations = [
-            line.strip("- ")
-            for line in trend_text.split("\n")
-            if line.strip()
-        ]
+        trend_observations = [line.strip("- ") for line in trend_text.split("\n") if line.strip()]
 
         recommendations = (
             recommendation_plan.recommendations

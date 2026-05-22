@@ -15,6 +15,7 @@ __all__ = [
     "seed_white",
 ]
 
+
 async def seed_wines():
     await asyncio.gather(
         seed_rose(),

@@ -16,9 +16,7 @@ async def seed_transactions():
             return
 
         # Get the demo user
-        user_result = await session.execute(
-            select(User).where(User.username == "chimerai_bistro")
-        )
+        user_result = await session.execute(select(User).where(User.username == "chimerai_bistro"))
         user = user_result.scalar_one_or_none()
         if not user:
             print("Demo user not found, skipping transaction seeding.")
@@ -33,12 +31,12 @@ async def seed_transactions():
 
         transactions = []
         base_date = datetime.now(timezone.utc) - timedelta(days=30)
-        
+
         # First, create PURCHASE transactions for the first 6 wines
         for idx in range(min(6, len(wines))):
             wine = wines[idx]
             quantity = 2 + (idx % 3)  # 2-4 bottles per purchase
-            
+
             transactions.append(
                 Transaction(
                     id=uuid7(),
@@ -50,12 +48,12 @@ async def seed_transactions():
                     transaction_date=base_date + timedelta(days=idx),
                 )
             )
-        
+
         # Then, create SALE transactions for some of the purchased wines (FIFO will apply)
         for idx in range(min(4, len(wines))):
             wine = wines[idx]
             quantity = 1 + (idx % 2)  # 1-2 bottles per sale
-            
+
             transactions.append(
                 Transaction(
                     id=uuid7(),

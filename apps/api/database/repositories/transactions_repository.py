@@ -29,7 +29,9 @@ class TransactionRepository(BaseRepository[Transaction]):
         )
         return result.scalars().all()
 
-    async def get_by_type(self, transaction_type: TransactionType, limit: int = 100) -> List[Transaction]:
+    async def get_by_type(
+        self, transaction_type: TransactionType, limit: int = 100
+    ) -> List[Transaction]:
         """Get transactions by type (PURCHASE or SALE)"""
         result = await self.session.execute(
             select(Transaction)
@@ -44,10 +46,7 @@ class TransactionRepository(BaseRepository[Transaction]):
         result = await self.session.execute(
             select(Transaction)
             .where(
-                and_(
-                    Transaction.user_id == user_id,
-                    Transaction.type == TransactionType.PURCHASE
-                )
+                and_(Transaction.user_id == user_id, Transaction.type == TransactionType.PURCHASE)
             )
             .order_by(Transaction.transaction_date.desc())
             .limit(limit)
@@ -58,12 +57,7 @@ class TransactionRepository(BaseRepository[Transaction]):
         """Get all sales for a user"""
         result = await self.session.execute(
             select(Transaction)
-            .where(
-                and_(
-                    Transaction.user_id == user_id,
-                    Transaction.type == TransactionType.SALE
-                )
-            )
+            .where(and_(Transaction.user_id == user_id, Transaction.type == TransactionType.SALE))
             .order_by(Transaction.transaction_date.desc())
             .limit(limit)
         )

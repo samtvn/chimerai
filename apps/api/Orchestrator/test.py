@@ -1,4 +1,5 @@
 """Test script for Orchestrator Agent"""
+
 import asyncio
 import os
 from dotenv import load_dotenv
@@ -33,7 +34,11 @@ async def test_orchestrator():
         cellar_analysis = result.get("cellar_analysis")
         if cellar_analysis:
             total = getattr(cellar_analysis, "total_wines", 0)
-            countries = cellar_analysis.diversity_metrics.get('countries', 0) if hasattr(cellar_analysis, 'diversity_metrics') else 0
+            countries = (
+                cellar_analysis.diversity_metrics.get("countries", 0)
+                if hasattr(cellar_analysis, "diversity_metrics")
+                else 0
+            )
             print(f"\n✓ Cellar Analysis: {total} wines analyzed")
             print(f"  Diversity Level: {countries} countries")
         else:
@@ -91,6 +96,7 @@ async def test_orchestrator():
     except Exception as e:
         print(f"✗ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

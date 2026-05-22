@@ -1,4 +1,5 @@
 """Service module for Sales Analysis Agent."""
+
 from uuid import UUID
 
 from .agent import SalesAnalysisAgent

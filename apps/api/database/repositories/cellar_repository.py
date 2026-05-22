@@ -30,12 +30,7 @@ class CellarRepository(BaseRepository[Cellar]):
         """Get all in-stock bottles in a user's cellar"""
         result = await self.session.execute(
             select(Cellar)
-            .where(
-                and_(
-                    Cellar.user_id == user_id,
-                    Cellar.status == BottleStatus.IN_CELLAR
-                )
-            )
+            .where(and_(Cellar.user_id == user_id, Cellar.status == BottleStatus.IN_CELLAR))
             .limit(limit)
         )
         return result.scalars().all()
@@ -44,26 +39,18 @@ class CellarRepository(BaseRepository[Cellar]):
         """Get all sold bottles from a user's cellar"""
         result = await self.session.execute(
             select(Cellar)
-            .where(
-                and_(
-                    Cellar.user_id == user_id,
-                    Cellar.status == BottleStatus.SOLD
-                )
-            )
+            .where(and_(Cellar.user_id == user_id, Cellar.status == BottleStatus.SOLD))
             .limit(limit)
         )
         return result.scalars().all()
 
-    async def get_wine_in_cellar(self, user_id: UUID, wine_id: int, limit: int = 100) -> List[Cellar]:
+    async def get_wine_in_cellar(
+        self, user_id: UUID, wine_id: int, limit: int = 100
+    ) -> List[Cellar]:
         """Get all bottles of a specific wine in a user's cellar"""
         result = await self.session.execute(
             select(Cellar)
-            .where(
-                and_(
-                    Cellar.user_id == user_id,
-                    Cellar.wine_id == wine_id
-                )
-            )
+            .where(and_(Cellar.user_id == user_id, Cellar.wine_id == wine_id))
             .limit(limit)
         )
         return result.scalars().all()

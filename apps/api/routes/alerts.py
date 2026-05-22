@@ -10,10 +10,12 @@ from agents.event_bus import event_bus, AgentEvent
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
+
 class AlertCreate(BaseModel):
     message: str
     severity: AlertSeverity = AlertSeverity.INFO
     source_agent: str | None = None
+
 
 @router.get("/alerts")
 async def list_alerts(
@@ -61,6 +63,7 @@ async def mark_all_alerts_read(db: AsyncSession = Depends(get_db)):
     repo = AlertRepository(db, read_only=False)
     count = await repo.mark_all_read(user_id)
     return {"marked_read": count}
+
 
 @router.post("/alerts")
 async def create_alert(body: AlertCreate, db: AsyncSession = Depends(get_db)):

@@ -1,4 +1,5 @@
 """Repository utilities for sales analysis."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -240,8 +241,12 @@ class SalesAnalysisRepository:
         sales_result = await self._session.execute(sales_query)
         stock_result = await self._session.execute(stock_query)
 
-        sales_rows = {row[0]: {"wine_name": row[1], "sales_recent": int(row[2] or 0)} for row in sales_result}
-        stock_rows = {row[0]: {"wine_name": row[1], "stock": int(row[2] or 0)} for row in stock_result}
+        sales_rows = {
+            row[0]: {"wine_name": row[1], "sales_recent": int(row[2] or 0)} for row in sales_result
+        }
+        stock_rows = {
+            row[0]: {"wine_name": row[1], "stock": int(row[2] or 0)} for row in stock_result
+        }
 
         movers = []
         for wine_id, stock_data in stock_rows.items():

@@ -14,9 +14,7 @@ async def seed_cellars():
             return
 
         # Get the demo user
-        user_result = await session.execute(
-            select(User).where(User.username == "chimerai_bistro")
-        )
+        user_result = await session.execute(select(User).where(User.username == "chimerai_bistro"))
         user = user_result.scalar_one_or_none()
         if not user:
             print("Demo user not found, skipping cellar seeding.")
@@ -34,7 +32,7 @@ async def seed_cellars():
             return
 
         cellars_to_add = []
-        
+
         # First pass: Create all bottles from PURCHASE transactions
         for transaction in transactions:
             if transaction.type == TransactionType.PURCHASE:
@@ -47,11 +45,11 @@ async def seed_cellars():
                             status=BottleStatus.IN_CELLAR,
                         )
                     )
-        
+
         # Commit the purchase bottles first so they exist for FIFO matching
         session.add_all(cellars_to_add)
         await session.commit()
-        
+
         # Second pass: Mark bottles as SOLD from SALE transactions (FIFO)
         for transaction in transactions:
             if transaction.type == TransactionType.SALE:
@@ -70,10 +68,10 @@ async def seed_cellars():
                     .limit(transaction.quantity)
                 )
                 bottles_to_sell = oldest_bottles_result.scalars().all()
-                
+
                 # Mark them as SOLD
                 for bottle in bottles_to_sell:
                     bottle.status = BottleStatus.SOLD
-        
+
         await session.commit()
         print("Seeded cellar entries with FIFO sales logic.")

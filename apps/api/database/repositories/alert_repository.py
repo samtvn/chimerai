@@ -24,6 +24,7 @@ class AlertRepository(BaseRepository[Alert]):
 
     async def get_unread_count(self, user_id: UUID) -> int:
         from sqlalchemy import func
+
         result = await self.session.execute(
             select(func.count(Alert.id)).where(
                 and_(Alert.user_id == user_id, Alert.read.is_(False))

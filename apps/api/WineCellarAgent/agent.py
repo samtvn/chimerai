@@ -1,4 +1,5 @@
 """Wine Cellar Analysis Agent using LangGraph"""
+
 import json
 from typing import Any
 from uuid import UUID
@@ -90,19 +91,19 @@ class WineCellarAgent:
 
         prompt = f"""Analyze the diversity of this wine cellar and provide insights:
 
-Total Wines: {wines_data.get('total_wines', 0)}
+Total Wines: {wines_data.get("total_wines", 0)}
 
 Distribution by Country:
-{json.dumps(wines_data.get('by_country', {}), indent=2)}
+{json.dumps(wines_data.get("by_country", {}), indent=2)}
 
 Distribution by Region:
-{json.dumps(wines_data.get('by_region', {}), indent=2)}
+{json.dumps(wines_data.get("by_region", {}), indent=2)}
 
 Distribution by Color:
-{json.dumps(wines_data.get('by_color', {}), indent=2)}
+{json.dumps(wines_data.get("by_color", {}), indent=2)}
 
 Distribution by Grape Variety:
-{json.dumps(wines_data.get('by_grape_variety', {}), indent=2)}
+{json.dumps(wines_data.get("by_grape_variety", {}), indent=2)}
 
 Please analyze:
 1. How diverse is this cellar?
@@ -257,26 +258,36 @@ Rules for parameters:
         weaknesses_analysis = _to_text(weaknesses_analysis)
 
         # Parse strengths from analysis
-        strengths_list = [s.strip() for s in strengths_analysis.split('\n') if s.strip() and not s.startswith('#')]
-        weaknesses_list = [w.strip() for w in weaknesses_analysis.split('\n') if w.strip() and not w.startswith('#')]
+        strengths_list = [
+            s.strip() for s in strengths_analysis.split("\n") if s.strip() and not s.startswith("#")
+        ]
+        weaknesses_list = [
+            w.strip()
+            for w in weaknesses_analysis.split("\n")
+            if w.strip() and not w.startswith("#")
+        ]
 
-        recommendations = recommendation_plan.recommendations if recommendation_plan else self._default_recommendations()
+        recommendations = (
+            recommendation_plan.recommendations
+            if recommendation_plan
+            else self._default_recommendations()
+        )
 
         # Create diversity metrics
         diversity_metrics = {
-            "countries": len(wines_data.get('by_country', {})),
-            "regions": len(wines_data.get('by_region', {})),
-            "wine_colors": len(wines_data.get('by_color', {})),
-            "grape_varieties": len(wines_data.get('by_grape_variety', {})),
-            "total_quantity": wines_data.get('total_quantity', 0),
-            "distribution_by_country": wines_data.get('by_country', {}),
-            "distribution_by_color": wines_data.get('by_color', {}),
-            "distribution_by_grape_variety": wines_data.get('by_grape_variety', {}),
+            "countries": len(wines_data.get("by_country", {})),
+            "regions": len(wines_data.get("by_region", {})),
+            "wine_colors": len(wines_data.get("by_color", {})),
+            "grape_varieties": len(wines_data.get("by_grape_variety", {})),
+            "total_quantity": wines_data.get("total_quantity", 0),
+            "distribution_by_country": wines_data.get("by_country", {}),
+            "distribution_by_color": wines_data.get("by_color", {}),
+            "distribution_by_grape_variety": wines_data.get("by_grape_variety", {}),
         }
 
         # Generate overall assessment
-        overall_assessment = f"""This wine cellar contains {wines_data.get('total_wines', 0)} wines representing
-        {len(wines_data.get('by_country', {}))} countries and {len(wines_data.get('by_region', {}))} regions.
+        overall_assessment = f"""This wine cellar contains {wines_data.get("total_wines", 0)} wines representing
+        {len(wines_data.get("by_country", {}))} countries and {len(wines_data.get("by_region", {}))} regions.
         The collection demonstrates a {self._calculate_diversity_level(wines_data)} level of diversity."""
 
         total_quantity = wines_data.get("total_quantity", 0)
@@ -295,7 +306,7 @@ Rules for parameters:
 
         try:
             analysis_result = WineCellarAnalysis(
-                total_wines=wines_data.get('total_wines', 0),
+                total_wines=wines_data.get("total_wines", 0),
                 quantity_observation=quantity_observation,
                 diversity_metrics=diversity_metrics,
                 strengths=strengths_list[:5],
@@ -363,10 +374,10 @@ Rules for parameters:
 
     def _calculate_diversity_level(self, wines_data: dict[str, Any]) -> str:
         """Calculate diversity level based on metrics"""
-        num_countries = len(wines_data.get('by_country', {}))
-        num_varieties = len(wines_data.get('by_grape_variety', {}))
-        num_colors = len(wines_data.get('by_color', {}))
-        total_wines = wines_data.get('total_wines', 0)
+        num_countries = len(wines_data.get("by_country", {}))
+        num_varieties = len(wines_data.get("by_grape_variety", {}))
+        num_colors = len(wines_data.get("by_color", {}))
+        total_wines = wines_data.get("total_wines", 0)
 
         diversity_score = (
             (num_countries * 0.35)

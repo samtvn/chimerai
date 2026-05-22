@@ -2,6 +2,7 @@
 Run this script once to create all tables and seed the database.
 Usage: uv run -m apps.api.database.init_db
 """
+
 import asyncio
 from sqlmodel import SQLModel
 
@@ -16,6 +17,7 @@ from .seeds.users import seed_users
 from .seeds.transactions import seed_transactions
 from .seeds.cellar import seed_cellars
 
+
 async def init_db():
     async with engine.begin() as conn:
         print("Creating tables...")
@@ -27,6 +29,7 @@ async def init_db():
     await seed_transactions()
     await seed_cellars()
     print("Done.")
+
 
 if __name__ == "__main__":
     asyncio.run(init_db())

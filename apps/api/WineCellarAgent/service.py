@@ -1,4 +1,5 @@
 """Service module for Wine Cellar Analysis - provides high-level interface"""
+
 import asyncio
 from uuid import UUID
 from .agent import WineCellarAgent
@@ -40,9 +41,9 @@ async def example_usage():
             cellar_repo = CellarRepository(session, read_only=True)
             analysis = await WineCellarAnalysisService.analyze_cellar(cellar_repo)
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Wine Cellar Analysis Report")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
         print(f"Total Wines: {analysis.total_wines}")
         print(f"\nDiversity Summary:")
@@ -51,17 +52,17 @@ async def example_usage():
         print(f"  - Wine Colors: {analysis.diversity_metrics.get('wine_colors', 0)}")
         print(f"  - Grape Varieties: {analysis.diversity_metrics.get('grape_varieties', 0)}")
 
-        print(f"\n{'-'*60}")
+        print(f"\n{'-' * 60}")
         print("Strengths:")
         for i, strength in enumerate(analysis.strengths, 1):
             print(f"  {i}. {strength}")
 
-        print(f"\n{'-'*60}")
+        print(f"\n{'-' * 60}")
         print("Areas for Improvement:")
         for i, weakness in enumerate(analysis.weaknesses, 1):
             print(f"  {i}. {weakness}")
 
-        print(f"\n{'-'*60}")
+        print(f"\n{'-' * 60}")
         print("Recommendations:")
         for i, rec in enumerate(analysis.recommendations, 1):
             print(f"\n  {i}. {rec.title} [{rec.criticality.value.upper()}]")
@@ -76,7 +77,7 @@ async def example_usage():
             print(f"     Action: {rec.suggested_action}")
             print(f"     Impact: {rec.estimated_impact}")
 
-        print(f"\n{'-'*60}")
+        print(f"\n{'-' * 60}")
         print(f"Summary:\n{analysis.summary}")
         print(f"\nOverall Assessment:\n{analysis.overall_assessment}")
 

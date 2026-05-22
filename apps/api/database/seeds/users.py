@@ -14,7 +14,7 @@ async def seed_users():
 
         users = [
             User(
-                id = uuid7(),
+                id=uuid7(),
                 firstname="John",
                 lastname="Doe",
                 username="chimerai_bistro",

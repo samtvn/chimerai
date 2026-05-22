@@ -1,4 +1,5 @@
 """Standalone event listener test script (no pytest)."""
+
 import asyncio
 import json
 import sys

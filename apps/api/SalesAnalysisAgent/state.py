@@ -1,4 +1,5 @@
 """State definition for Sales Analysis Agent."""
+
 from typing import Optional, TypedDict
 
 from .models import SalesAnalysisFocus, SalesAnalysisResult, SalesRecommendationPlan

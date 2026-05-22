@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from .users import User
     from .wines import Wine
 
+
 class TransactionType(str, Enum):
     PURCHASE = "purchase"
     SALE = "sale"
@@ -18,10 +19,7 @@ class TransactionType(str, Enum):
 class Transaction(SQLModel, table=True):
     __tablename__ = "transactions"
 
-    id: UUID = Field(
-        default_factory=uuid7,
-        primary_key=True
-    )
+    id: UUID = Field(default_factory=uuid7, primary_key=True)
     wine_id: int = Field(foreign_key="wines.id")
     user_id: UUID = Field(foreign_key="users.id")
     quantity: int

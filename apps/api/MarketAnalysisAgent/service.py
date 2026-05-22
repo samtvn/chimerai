@@ -1,4 +1,5 @@
 """Service layer for Market Analysis Agent"""
+
 from typing import Any, Mapping
 
 from .agent import MarketAnalysisAgent

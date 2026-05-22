@@ -2,10 +2,12 @@ from collections import deque
 from typing import List, Optional
 from .events import Event
 
+
 class EventManager:
     """
     Manages a deque of events in memory.
     """
+
     def __init__(self, max_events: int = 100):
         self.events = deque(maxlen=max_events)
 
@@ -22,6 +24,7 @@ class EventManager:
         if self.events:
             return self.events[-1]
         return None
+
 
 # Singleton instance of the EventManager
 event_manager = EventManager()

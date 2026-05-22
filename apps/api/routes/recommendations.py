@@ -6,6 +6,7 @@ from database.repositories.recommendations_repository import RecommendationRepos
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
+
 @router.get("/recommendations")
 async def list_recommendations(
     limit: int = Query(50, le=200),

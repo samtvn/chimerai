@@ -1,7 +1,8 @@
-from .alerts import Alert  # noqa: F401
-from .users import User  # noqa: F401
-from .wines import Wine  # noqa: F401
-from .cellar import Cellar  # noqa: F401
-from .transactions import Transaction  # noqa: F401
+from .alerts import Alert
+from .cellar import Cellar
+from .recommendations import Recommendation
+from .transactions import Transaction
+from .users import User
+from .wines import Wine
 
-__all__ = ["User", "Wine", "Cellar", "Transaction", "Alert"]
+__all__ = ["User", "Wine", "Cellar", "Transaction", "Alert", "Recommendation"]

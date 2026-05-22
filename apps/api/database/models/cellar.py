@@ -9,18 +9,17 @@ if TYPE_CHECKING:
     from .users import User
     from .wines import Wine
 
+
 class BottleStatus(str, Enum):
     IN_CELLAR = "in_cellar"
     SOLD = "sold"
     OPEN = "open"
 
+
 class Cellar(SQLModel, table=True):
     __tablename__ = "cellar"
 
-    id: UUID = Field(
-        default_factory=uuid7,
-        primary_key=True
-    )
+    id: UUID = Field(default_factory=uuid7, primary_key=True)
     user_id: UUID = Field(foreign_key="users.id")
     wine_id: int = Field(foreign_key="wines.id")
     transaction_id: UUID = Field(foreign_key="transactions.id")

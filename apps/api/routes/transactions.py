@@ -32,6 +32,7 @@ class TransactionUpdate(BaseModel):
     type: TransactionType | None = None
     date: datetime | None = None
 
+
 @router.get("/transactions")
 async def list_transactions(
     type: Optional[TransactionType] = None,
@@ -42,9 +43,7 @@ async def list_transactions(
     user_id = await get_demo_user_id(db)
     if type:
         if type == TransactionType.PURCHASE:
-            txns = await TransactionRepository(db, True).get_user_purchases(
-                user_id, limit
-            )
+            txns = await TransactionRepository(db, True).get_user_purchases(user_id, limit)
         else:
             txns = await TransactionRepository(db, True).get_user_sales(user_id, limit)
     else:

@@ -1,4 +1,5 @@
 """State definition for Wine Cellar Analysis Agent"""
+
 from typing import Any, Optional, TypedDict
 
 from .models import RecommendationPlan, WineCellarAnalysis

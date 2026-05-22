@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api", tags=["examples"])
 # READ-ONLY ROUTES (for AI agents, safe to call frequently)
 # ============================================================================
 
+
 @router.get("/users/{username}")
 async def get_user(username: str, db: AsyncSession = Depends(get_read_db)):
     """AI agent route: Get user by username (read-only)"""
@@ -37,6 +38,7 @@ async def get_wines_by_color(color: str, db: AsyncSession = Depends(get_read_db)
 async def get_user_inventory(user_id: str, db: AsyncSession = Depends(get_read_db)):
     """AI agent route: Get user's current inventory (read-only)"""
     from uuid import UUID
+
     repo = CellarRepository(db, read_only=True)
     bottles = await repo.get_user_cellar_in_stock(UUID(user_id), limit=100)
     return {"user_id": user_id, "bottles_in_stock": len(bottles), "bottles": bottles}
@@ -45,6 +47,7 @@ async def get_user_inventory(user_id: str, db: AsyncSession = Depends(get_read_d
 # ============================================================================
 # WRITE ROUTES (for admin, restricted to write-enabled sessions)
 # ============================================================================
+
 
 @router.post("/users")
 async def create_user(username: str, email: str, db: AsyncSession = Depends(get_db)):
@@ -61,6 +64,7 @@ async def create_user(username: str, email: str, db: AsyncSession = Depends(get_
 async def update_user(user_id: str, username: str, db: AsyncSession = Depends(get_db)):
     """Admin route: Update user (write-enabled)"""
     from uuid import UUID
+
     repo = UserRepository(db, read_only=False)
     try:
         user = await repo.update(UUID(user_id), username=username)
@@ -72,6 +76,7 @@ async def update_user(user_id: str, username: str, db: AsyncSession = Depends(ge
 # ============================================================================
 # MIXED ROUTES (read from read-only, write with write-enabled)
 # ============================================================================
+
 
 @router.get("/validate/user/{username}")
 async def validate_user_exists(username: str, db: AsyncSession = Depends(get_read_db)):

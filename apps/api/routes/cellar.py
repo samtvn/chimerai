@@ -8,6 +8,7 @@ from database.repositories.cellar_repository import CellarRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
+
 @router.get("/cellar")
 async def cellar_wines(db: AsyncSession = Depends(get_read_db)):
     user_id = await get_demo_user_id(db)

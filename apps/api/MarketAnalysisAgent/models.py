@@ -1,4 +1,5 @@
 """Structured models for market analysis outputs"""
+
 from typing import Optional, List
 
 from pydantic import BaseModel, Field
@@ -12,15 +13,21 @@ class MarketAnalysisCriteria(BaseModel):
     country: Optional[str] = Field(default=None, description="Target country, if needed")
     region: Optional[str] = Field(default=None, description="Target region, if needed")
     sub_region: Optional[str] = Field(default=None, description="Target sub-region, if needed")
-    grape_variety: Optional[str] = Field(default=None, description="Target grape variety, if needed")
+    grape_variety: Optional[str] = Field(
+        default=None, description="Target grape variety, if needed"
+    )
     style: Optional[str] = Field(default=None, description="Target style, if needed")
     vintage: Optional[str] = Field(default=None, description="Target vintage, if needed")
-    alcohol_level: Optional[str] = Field(default=None, description="Target alcohol level, if needed")
+    alcohol_level: Optional[str] = Field(
+        default=None, description="Target alcohol level, if needed"
+    )
     tannin: Optional[str] = Field(default=None, description="Target tannin level, if needed")
     acidity: Optional[str] = Field(default=None, description="Target acidity level, if needed")
     sweetness: Optional[str] = Field(default=None, description="Target sweetness level, if needed")
     body: Optional[str] = Field(default=None, description="Target body, if needed")
-    ageing_potential: Optional[str] = Field(default=None, description="Target ageing potential, if needed")
+    ageing_potential: Optional[str] = Field(
+        default=None, description="Target ageing potential, if needed"
+    )
     food_pairing: Optional[str] = Field(default=None, description="Target food pairing, if needed")
 
 

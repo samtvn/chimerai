@@ -1,4 +1,5 @@
 """Response models for Wine Cellar Analysis Agent"""
+
 from enum import Enum
 from typing import List
 
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 
 class CriticalityLevel(str, Enum):
     """Criticality levels for recommendations"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -49,6 +51,7 @@ class WineBuyingParameter(BaseModel):
 
 class Recommendation(BaseModel):
     """A single recommendation for the wine cellar"""
+
     title: str = Field(..., description="Short title of the recommendation")
     description: str = Field(..., description="Detailed description of the recommendation")
     criticality: CriticalityLevel = Field(..., description="How critical this recommendation is")
@@ -76,27 +79,20 @@ class RecommendationPlan(BaseModel):
 
 class WineCellarAnalysis(BaseModel):
     """Structured output from wine cellar analysis"""
+
     total_wines: int = Field(..., description="Total number of wines in cellar")
 
     quantity_observation: str = Field(
-        ...,
-        description="Non-agentic observation about bottle quantities"
+        ..., description="Non-agentic observation about bottle quantities"
     )
 
     diversity_metrics: dict = Field(
-        ...,
-        description="Metrics about cellar diversity (by country, region, type, colour, etc.)"
+        ..., description="Metrics about cellar diversity (by country, region, type, colour, etc.)"
     )
 
-    strengths: List[str] = Field(
-        ...,
-        description="Strengths of the current wine cellar"
-    )
+    strengths: List[str] = Field(..., description="Strengths of the current wine cellar")
 
-    weaknesses: List[str] = Field(
-        ...,
-        description="Weaknesses or issues identified in the cellar"
-    )
+    weaknesses: List[str] = Field(..., description="Weaknesses or issues identified in the cellar")
 
     recommendations: List[Recommendation] = Field(
         ...,
@@ -104,11 +100,7 @@ class WineCellarAnalysis(BaseModel):
     )
 
     overall_assessment: str = Field(
-        ...,
-        description="Overall summary assessment of the wine cellar"
+        ..., description="Overall summary assessment of the wine cellar"
     )
 
-    summary: str = Field(
-        ...,
-        description="Brief executive summary for quick understanding"
-    )
+    summary: str = Field(..., description="Brief executive summary for quick understanding")

@@ -1,4 +1,5 @@
 """FastAPI routes for Sales Analysis Agent."""
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from SalesAnalysisAgent.models import SalesAnalysisFocus, SalesAnalysisResult

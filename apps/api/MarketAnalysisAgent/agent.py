@@ -1,4 +1,5 @@
 """Market Analysis Agent for selecting wines based on criteria"""
+
 from __future__ import annotations
 
 import re
@@ -96,7 +97,9 @@ class MarketAnalysisAgent:
         checks.append(self._match_text(criteria.country, wine.country, "country", notes))
         checks.append(self._match_text(criteria.region, wine.region, "region", notes))
         checks.append(self._match_text(criteria.sub_region, wine.appellation, "sub_region", notes))
-        checks.append(self._match_text(criteria.grape_variety, wine.grape_variety, "grape_variety", notes))
+        checks.append(
+            self._match_text(criteria.grape_variety, wine.grape_variety, "grape_variety", notes)
+        )
         checks.append(self._match_text(criteria.vintage, wine.vintage, "vintage", notes))
         checks.append(self._match_price(criteria.price_range, wine.market_price, notes))
 

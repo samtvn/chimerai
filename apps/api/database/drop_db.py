@@ -2,6 +2,7 @@
 Drops all tables in the public schema regardless of SQLModel metadata.
 Usage: uv run -m apps.api.database.drop_db
 """
+
 import asyncio
 from sqlalchemy import text
 from .database import engine

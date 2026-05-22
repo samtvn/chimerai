@@ -1,4 +1,5 @@
 """Database service for Wine Cellar Agent to fetch cellar data"""
+
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy import func, select

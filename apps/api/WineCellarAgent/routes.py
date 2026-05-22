@@ -1,4 +1,5 @@
 """Example FastAPI routes for Wine Cellar Analysis Agent"""
+
 from fastapi import APIRouter, HTTPException, Depends
 from WineCellarAgent.service import WineCellarAnalysisService
 from WineCellarAgent.models import WineCellarAnalysis
@@ -43,15 +44,11 @@ async def get_cellar_summary(db=Depends(get_read_db)):
             "diversity_level": _calculate_diversity_level(analysis.diversity_metrics),
             "key_strengths": analysis.strengths[:3],
             "priority_improvements": [
-                {
-                    "title": rec.title,
-                    "criticality": rec.criticality,
-                    "action": rec.suggested_action
-                }
+                {"title": rec.title, "criticality": rec.criticality, "action": rec.suggested_action}
                 for rec in analysis.recommendations
                 if rec.criticality.value in ["high", "critical"]
             ][:3],
-            "summary": analysis.summary
+            "summary": analysis.summary,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Summary generation failed: {str(e)}")
@@ -60,10 +57,10 @@ async def get_cellar_summary(db=Depends(get_read_db)):
 def _calculate_diversity_level(metrics: dict) -> str:
     """Helper to calculate diversity level from metrics"""
     score = (
-        metrics.get('countries', 0) * 0.35 +
-        metrics.get('grape_varieties', 0) * 0.35 +
-        metrics.get('wine_colors', 0) * 0.1 +
-        min(len(metrics.get('distribution_by_country', {})) / 50, 10) * 0.2
+        metrics.get("countries", 0) * 0.35
+        + metrics.get("grape_varieties", 0) * 0.35
+        + metrics.get("wine_colors", 0) * 0.1
+        + min(len(metrics.get("distribution_by_country", {})) / 50, 10) * 0.2
     )
 
     if score >= 8:

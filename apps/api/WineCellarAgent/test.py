@@ -6,10 +6,13 @@ This script can be run to test the agent locally:
 Or with pytest:
     pytest WineCellarAgent/test.py
 """
+
 import asyncio
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
+
 
 # Check environment variables
 def check_env():
@@ -188,6 +191,7 @@ async def test_full_analysis():
     except Exception as e:
         print(f"✗ Analysis failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -220,6 +224,7 @@ async def main():
         except Exception as e:
             print(f"✗ Test failed with exception: {e}")
             import traceback
+
             traceback.print_exc()
             results.append((test_name, False))
 

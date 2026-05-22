@@ -1,4 +1,5 @@
 """Orchestrator state definition"""
+
 from typing import TypedDict, Optional, Any
 
 from .models import OrchestratorSearchPlan
