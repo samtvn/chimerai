@@ -19,6 +19,8 @@ async def list_recommendations(
             {
                 "id": str(a.id),
                 "wine_id": a.wine_id,
+                "wine_name": a.wine.name if a.wine else None,
+                "wine_producer": a.wine.producer if a.wine else None,
                 "quantity": a.quantity,
                 "market_price": a.market_price,
                 "priority_score": a.priority_score,

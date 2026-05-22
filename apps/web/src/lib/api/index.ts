@@ -70,12 +70,25 @@ export interface AgentEvent {
   timestamp: string;
 }
 
+export interface Recommendation {
+  id: string;
+  wine_id: number;
+  wine_name: string | null;
+  wine_producer: string | null;
+  quantity: number;
+  market_price: number;
+  priority_score: number;
+  recommendation_reason: string;
+  created_at: string;
+}
+
 export const api = {
   wines: {
-    list: (params?: { color?: string; region?: string; search?: string; limit?: number }) => {
+    list: (params?: { color?: string; region?: string; appellation?: string, search?: string; limit?: number }) => {
       const q = new URLSearchParams();
       if (params?.color) q.set("color", params.color);
       if (params?.region) q.set("region", params.region);
+      if (params?.appellation) q.set("appellation", params.appellation);
       if (params?.search) q.set("search", params.search);
       if (params?.limit) q.set("limit", String(params.limit));
       return fetchApi<{ wines: Wine[]; total: number }>(`/wines?${q}`);
@@ -83,6 +96,7 @@ export const api = {
     get: (id: number) => fetchApi<Wine>(`/wines/${id}`),
     regions: () => fetchApi<{ regions: string[] }>("/wines/filters/regions"),
     colors: () => fetchApi<{ colors: string[] }>("/wines/filters/colors"),
+    appellations: () => fetchApi<{ appellations: string[] }>("/wines/filters/appellations"),
   },
 
   cellar: {
@@ -145,5 +159,13 @@ export const api = {
         body: JSON.stringify({ trigger, data }),
       }),
     status: () => fetchApi<{ status: string; subscriber_count: number; recent_events: number }>("/agent/status"),
+  },
+
+  recommendations: {
+    list: (params?: { limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.limit) q.set("limit", String(params.limit));
+      return fetchApi<{ recommendations: Recommendation[] }>(`/recommendations?${q}`);
+    },
   },
 };

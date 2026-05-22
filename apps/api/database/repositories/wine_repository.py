@@ -1,6 +1,7 @@
+from typing import List
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 
 from ..models.wines import Wine
 from .base import BaseRepository
@@ -20,21 +21,24 @@ class WineRepository(BaseRepository[Wine]):
 
     async def get_by_color(self, color: str, limit: int = 100) -> List[Wine]:
         """Get wines by color"""
-        result = await self.session.execute(
-            select(Wine).where(Wine.color == color).limit(limit)
-        )
+        result = await self.session.execute(select(Wine).where(Wine.color == color).limit(limit))
         return result.scalars().all()
 
     async def get_by_region(self, region: str, limit: int = 100) -> List[Wine]:
         """Get wines by region"""
-        result = await self.session.execute(
-            select(Wine).where(Wine.region == region).limit(limit)
-        )
+        result = await self.session.execute(select(Wine).where(Wine.region == region).limit(limit))
         return result.scalars().all()
 
     async def get_by_producer(self, producer: str, limit: int = 100) -> List[Wine]:
         """Get wines by producer"""
         result = await self.session.execute(
             select(Wine).where(Wine.producer == producer).limit(limit)
+        )
+        return result.scalars().all()
+
+    async def get_by_appellation(self, appellation: str, limit: int = 100) -> List[Wine]:
+        """Get wines by producer"""
+        result = await self.session.execute(
+            select(Wine).where(Wine.appellation == appellation).limit(limit)
         )
         return result.scalars().all()

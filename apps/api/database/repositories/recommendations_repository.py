@@ -1,5 +1,6 @@
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from typing import List
 from uuid import UUID
 
@@ -16,6 +17,7 @@ class RecommendationRepository(BaseRepository[Recommendation]):
     async def get_user_recommendations(self, user_id: UUID, limit: int = 50) -> List[Recommendation]:
         result = await self.session.execute(
             select(Recommendation)
+            .options(selectinload(Recommendation.wine))
             .where(Recommendation.user_id == user_id)
             .order_by(Recommendation.created_at.desc())
             .limit(limit)

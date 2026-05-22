@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, distinct
 from typing import Optional
 
-from database.dependencies import get_read_db, get_demo_user_id
-from database.repositories.wine_repository import WineRepository
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import distinct, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database.dependencies import get_read_db
 from database.models.wines import Wine
+from database.repositories.wine_repository import WineRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
@@ -73,3 +74,9 @@ async def get_regions(db: AsyncSession = Depends(get_read_db)):
 async def get_colors(db: AsyncSession = Depends(get_read_db)):
     result = await db.execute(select(distinct(Wine.color)).order_by(Wine.color))
     return {"colors": [c for c in result.scalars().all() if c]}
+
+
+@router.get("/wines/filters/appellations")
+async def get_appellations(db: AsyncSession = Depends(get_read_db)):
+    result = await db.execute(select(distinct(Wine.appellation)).order_by(Wine.appellation))
+    return {"appellations": [c for c in result.scalars().all() if c]}

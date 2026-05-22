@@ -23,10 +23,12 @@
   let summary = $state<CellarSummary | null>(null);
   let regions = $state<string[]>([]);
   let colors = $state<string[]>([]);
+  let appellations = $state<string[]>([]);
 
   let searchQuery = $state("");
   let filterColor = $state("");
   let filterRegion = $state("");
+  let filterAppellation = $state("");
   let selectedWine = $state<(WineType & { stock: number }) | null>(null);
   let showFilters = $state(false);
   let showAddModal = $state(false);
@@ -44,16 +46,19 @@
   async function loadData() {
     loading = true;
     try {
-      const [cellarRes, summaryRes, regionRes, colorRes] = await Promise.all([
-        api.cellar.wines(),
-        api.cellar.summary(),
-        api.wines.regions(),
-        api.wines.colors(),
-      ]);
+      const [cellarRes, summaryRes, regionRes, colorRes, appellationRes] =
+        await Promise.all([
+          api.cellar.wines(),
+          api.cellar.summary(),
+          api.wines.regions(),
+          api.wines.colors(),
+          api.wines.appellations(),
+        ]);
       wines = cellarRes.wines;
       summary = summaryRes;
       regions = regionRes.regions;
       colors = colorRes.colors;
+      appellations = appellationRes.appellations;
     } catch (e: any) {
       error = e.message;
     }
@@ -152,7 +157,8 @@
   };
 
   const filteredWines = $derived.by(() => {
-    if (!searchQuery && !filterColor && !filterRegion) return wines;
+    if (!searchQuery && !filterColor && !filterRegion && !filterAppellation)
+      return wines;
     return wines.filter((w) => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -166,6 +172,8 @@
       }
       if (filterColor && w.color !== filterColor) return false;
       if (filterRegion && w.region !== filterRegion) return false;
+      if (filterAppellation && w.appellation !== filterAppellation)
+        return false;
       return true;
     });
   });
@@ -271,9 +279,6 @@
       >
         <Plus size="14" /> Purchase
       </button>
-      <button class="btn btn-sm btn-error" onclick={() => openAddModal("sale")}>
-        <Minus size="14" /> Sale
-      </button>
     </div>
   </div>
 
@@ -291,11 +296,19 @@
         <option value="">All regions</option>
         {#each regions as r}<option value={r}>{r}</option>{/each}
       </select>
+      <select
+        class="select select-sm select-bordered"
+        bind:value={filterAppellation}
+      >
+        <option value="">All appellations</option>
+        {#each appellations as c}<option value={c}>{c}</option>{/each}
+      </select>
       <button
         class="btn btn-xs btn-ghost"
         onclick={() => {
           filterColor = "";
           filterRegion = "";
+          filterAppellation = "";
         }}
       >
         <X size="12" /> Clear
