@@ -5,6 +5,7 @@ from typing import Generic, TypeVar, List, Optional
 T = TypeVar("T")
 
 
+
 class BaseRepository(Generic[T]):
     """Base repository with common CRUD operations"""
 
