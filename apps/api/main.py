@@ -1,4 +1,5 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Depends
@@ -16,7 +17,11 @@ from routes.sse import router as sse_router
 from routes.summary import router as summary_router
 from routes.transactions import router as transactions_router
 from routes.wines import router as wines_router
-
+from Orchestrator.service import OrchestratorService
+from WineCellarAgent.routes import router as wine_cellar_router
+from SalesAnalysisAgent.routes import router as sales_analysis_router
+from Orchestrator.routes import router as orchestrator_router
+from routes.recommendations import router as recommendations_router
 # _scheduler_task = None
 
 # async def _periodic_analysis():
@@ -32,6 +37,7 @@ from routes.wines import router as wines_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # global _scheduler_task
+    listener_task = asyncio.create_task(OrchestratorService.run_event_listener())
     print("🚀 Starting Chimerai API")
     print("📊 Verifying database connection...")
     async with engine.begin():
@@ -43,6 +49,9 @@ async def lifespan(app: FastAPI):
     yield
 
     print("🛑 Shutting down Chimerai API")
+    listener_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await listener_task
     # if _scheduler_task:
     #     _scheduler_task.cancel()
     await engine.dispose()
@@ -71,6 +80,11 @@ app.include_router(sse_router)
 app.include_router(summary_router)
 app.include_router(transactions_router)
 app.include_router(wines_router)
+app.include_router(wine_cellar_router)
+app.include_router(sales_analysis_router)
+app.include_router(orchestrator_router)
+app.include_router(recommendations_router)
+
 
 @app.get("/")
 async def root():

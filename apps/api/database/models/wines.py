@@ -5,7 +5,8 @@ if TYPE_CHECKING:
     from .cellar import Cellar
     from .transactions import Transaction
 
-# TODO: change vector number depending on the embedding model we will choose
+
+# Define Wine without relationships first
 class Wine(SQLModel, table=True):
     __tablename__ = "wines"
 

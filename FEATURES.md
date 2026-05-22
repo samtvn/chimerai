@@ -1,0 +1,7 @@
+- SCAN : donner une image en argument (regarder comment faire) retourne un vin dans la base de donnée
+- Iinitialise et stocke une instance de Bottle pour le vin scanné
+- Classe inventaire : contient une liste Bottles + stats helper (exemple : genere un carte des vins)
+- Depuis un prompt (repas/question recommande une bouteille de l inventaire)
+- Genere une description de la bouteille  avec recommandation
+- Genere un profil de l utilisateuret ajuste les recommandations selon le priofil (question pour creer l utilisateur ??)
+-

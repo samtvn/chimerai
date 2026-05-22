@@ -4,3 +4,8 @@ members = ["apps/api"]
 [build-system]
 requires = ["uv"]
 build-backend = "uv"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
