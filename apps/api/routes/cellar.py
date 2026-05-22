@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.dependencies import get_read_db, get_demo_user_id
 from database.repositories.wine_repository import WineRepository
-from database.repositories.transactions_repository import TransactionRepository
 from database.repositories.cellar_repository import CellarRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])

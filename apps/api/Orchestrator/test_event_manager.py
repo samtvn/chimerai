@@ -1,7 +1,6 @@
 import pytest
 from .event_manager import EventManager, event_manager
 from .events import WineSoldEvent, WineAddedEvent, AnalysisRunEvent
-from datetime import datetime
 import uuid
 
 

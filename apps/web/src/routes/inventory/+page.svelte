@@ -142,7 +142,7 @@
   const colorEmoji: Record<string, string> = {
     red: "🔴",
     white: "⚪",
-    rose: "🩷",
+    rosé: "🩷",
     sparkling: "✨",
     fortified: "🟤",
     dessert: "🟡",
@@ -150,7 +150,7 @@
   const colorDaisy: Record<string, string> = {
     red: "badge-error",
     white: "badge-ghost",
-    rose: "badge-secondary",
+    rosé: "badge-secondary",
     sparkling: "badge-info",
     fortified: "badge-warning",
     dessert: "badge-accent",

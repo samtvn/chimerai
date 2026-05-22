@@ -155,10 +155,10 @@ async def test_full_analysis():
             print(f"   Evidence: {rec.evidence}")
             print(f"   Expected Impact: {rec.expected_impact}")
 
-        print(f"\n--- Overall Assessment ---")
+        print("\n--- Overall Assessment ---")
         print(analysis.overall_assessment)
 
-        print(f"\n--- Summary ---")
+        print("\n--- Summary ---")
         print(analysis.summary)
 
         print("\n" + "=" * 60)

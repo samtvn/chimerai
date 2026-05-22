@@ -141,14 +141,14 @@ async def test_full_analysis():
             cellar_repo = CellarRepository(session, read_only=True)
             analysis = await WineCellarAnalysisService.analyze_cellar(cellar_repo)
 
-        print(f"\n✓ Analysis completed successfully!")
+        print("\n✓ Analysis completed successfully!")
         print("\n" + "=" * 60)
         print("FULL CELLAR ANALYSIS RESPONSE")
         print("=" * 60)
 
         print(f"\nTotal wines: {analysis.total_wines}")
 
-        print(f"\n--- Diversity Metrics ---")
+        print("\n--- Diversity Metrics ---")
         for key, value in analysis.diversity_metrics.items():
             if isinstance(value, dict):
                 print(f"{key}:")
@@ -176,10 +176,10 @@ async def test_full_analysis():
             print(f"   Suggested Action: {rec.suggested_action}")
             print(f"   Estimated Impact: {rec.estimated_impact}")
 
-        print(f"\n--- Overall Assessment ---")
+        print("\n--- Overall Assessment ---")
         print(analysis.overall_assessment)
 
-        print(f"\n--- Summary ---")
+        print("\n--- Summary ---")
         print(analysis.summary)
 
         print("\n" + "=" * 60)

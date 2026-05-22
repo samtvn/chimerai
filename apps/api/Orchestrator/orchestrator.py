@@ -165,9 +165,7 @@ class CellarOrchestrator:
         else:
             fit_note = "weak match"
 
-        return (
-            f"Criticality is {criticality_label}; market fit is a {fit_note}. "
-        )
+        return f"Criticality is {criticality_label}; market fit is a {fit_note}. "
 
     def _build_criteria(self, recommendation: Recommendation) -> MarketSearchCriteria:
         """Convert a structured recommendation into search-only criteria."""

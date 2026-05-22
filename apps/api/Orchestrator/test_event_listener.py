@@ -1,7 +1,6 @@
 import asyncio
 from contextlib import suppress
 from uuid import UUID
-import pytest
 
 from agents.event_bus import event_bus, AgentEvent
 from Orchestrator.service import OrchestratorService

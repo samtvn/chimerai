@@ -42,11 +42,11 @@ async def example_usage():
             analysis = await WineCellarAnalysisService.analyze_cellar(cellar_repo)
 
         print(f"\n{'=' * 60}")
-        print(f"Wine Cellar Analysis Report")
+        print("Wine Cellar Analysis Report")
         print(f"{'=' * 60}\n")
 
         print(f"Total Wines: {analysis.total_wines}")
-        print(f"\nDiversity Summary:")
+        print("\nDiversity Summary:")
         print(f"  - Countries: {analysis.diversity_metrics.get('countries', 0)}")
         print(f"  - Regions: {analysis.diversity_metrics.get('regions', 0)}")
         print(f"  - Wine Colors: {analysis.diversity_metrics.get('wine_colors', 0)}")
@@ -69,7 +69,7 @@ async def example_usage():
             print(f"     Description: {rec.description}")
             print(f"     Price range: {rec.price_range}")
             print(f"     Quantity to buy: {rec.quantity_to_buy}")
-            print(f"     Parameters:")
+            print("     Parameters:")
             for parameter in rec.parameters:
                 print(
                     f"       - {parameter.aspect.value}: {parameter.target} ({parameter.rationale})"

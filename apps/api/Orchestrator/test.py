@@ -1,7 +1,6 @@
 """Test script for Orchestrator Agent"""
 
 import asyncio
-import os
 from dotenv import load_dotenv
 
 load_dotenv()

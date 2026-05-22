@@ -2,7 +2,7 @@
   import {
     ArrowRightLeft,
     BottleWine,
-    AlertTriangle,
+    TriangleAlert,
     TrendingUp,
   } from "@lucide/svelte";
   import { api, type CellarSummary, type Alert as AlertType } from "$lib/api";
@@ -106,7 +106,7 @@
           </div>
           <div class="mt-1 flex items-end gap-2">
             <span class="text-2xl font-bold text-warning">{alerts.length}</span
-            ><AlertTriangle size="20" class="text-warning mb-0.5" />
+            ><TriangleAlert size="20" class="text-warning mb-0.5" />
           </div>
           <div class="text-base-content/50 text-xs mt-1">Require attention</div>
         </div>
@@ -158,7 +158,7 @@
         <h2 class="font-semibold text-base">Alerts</h2>
         {#each alerts as alert (alert.id)}
           <div class="alert {alertBadge[alert.severity]} py-2 px-4 text-sm">
-            <AlertTriangle size="16" />{alert.message}
+            <TriangleAlert size="16" />{alert.message}
           </div>
         {/each}
       </div>
