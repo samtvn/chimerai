@@ -1,8 +1,8 @@
 """Service layer for Market Analysis Agent"""
 from typing import Any, Mapping
 
-from api.MarketAnalysisAgent.agent import MarketAnalysisAgent
-from api.MarketAnalysisAgent.models import MarketAnalysisCriteria, MarketAnalysisResult
+from .agent import MarketAnalysisAgent
+from .models import MarketAnalysisCriteria, MarketAnalysisResult
 
 
 class MarketAnalysisService:

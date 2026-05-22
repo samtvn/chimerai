@@ -37,7 +37,7 @@ def check_env():
 async def test_basic_import():
     """Test that all modules can be imported"""
     try:
-        from api.SalesAnalysisAgent.models import (
+        from SalesAnalysisAgent.models import (
             CriticalityLevel,
             RecommendationType,
             SalesAnalysisFocus,
@@ -45,11 +45,11 @@ async def test_basic_import():
             SalesRecommendation,
             SalesRecommendationPlan,
         )
-        from api.SalesAnalysisAgent.state import SalesAnalysisAgentState
-        from api.SalesAnalysisAgent.repository import SalesAnalysisRepository
-        from api.SalesAnalysisAgent.agent import SalesAnalysisAgent
-        from api.SalesAnalysisAgent.service import SalesAnalysisService
-        from ..database.repositories.cellar_repository import CellarRepository
+        from SalesAnalysisAgent.state import SalesAnalysisAgentState
+        from SalesAnalysisAgent.repository import SalesAnalysisRepository
+        from SalesAnalysisAgent.agent import SalesAnalysisAgent
+        from SalesAnalysisAgent.service import SalesAnalysisService
+        from database.repositories.cellar_repository import CellarRepository
 
         print("✓ All modules imported successfully")
         return True
@@ -61,7 +61,7 @@ async def test_basic_import():
 async def test_structured_models():
     """Test the structured recommendation schema validates correctly"""
     try:
-        from api.SalesAnalysisAgent.models import (
+        from SalesAnalysisAgent.models import (
             CriticalityLevel,
             RecommendationType,
             SalesRecommendation,
@@ -98,9 +98,9 @@ async def test_structured_models():
 async def test_database_connection():
     """Test database connection"""
     try:
-        from api.SalesAnalysisAgent.repository import SalesAnalysisRepository
-        from api.database.database import AsyncReadSessionLocal
-        from ..database.repositories.cellar_repository import CellarRepository
+        from SalesAnalysisAgent.repository import SalesAnalysisRepository
+        from database.database import AsyncReadSessionLocal
+        from database.repositories.cellar_repository import CellarRepository
 
         async with AsyncReadSessionLocal() as session:
             cellar_repo = CellarRepository(session, read_only=True)
@@ -119,9 +119,9 @@ async def test_full_analysis():
     """Run a full analysis (this requires valid database and API key)"""
     try:
         print("\nRunning full sales analysis...")
-        from api.SalesAnalysisAgent.service import SalesAnalysisService
-        from api.database.database import AsyncReadSessionLocal
-        from ..database.repositories.cellar_repository import CellarRepository
+        from SalesAnalysisAgent.service import SalesAnalysisService
+        from database.database import AsyncReadSessionLocal
+        from database.repositories.cellar_repository import CellarRepository
         import json
 
         async with AsyncReadSessionLocal() as session:

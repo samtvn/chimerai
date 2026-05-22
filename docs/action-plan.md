@@ -5,7 +5,6 @@ Status markers: [ ] not started, [~] in progress, [x] done
 ## Backend/Agents Lead : Gaspard
 
 - [ ] Define agent behavior tweaks: parsing, recommendation constraints, fallback logic, retries, error paths
-- [ ] Add API routes for WineCellar, SalesAnalysis, Orchestrator; wire to FastAPI app
 - [ ] Implement inventory + sales write endpoints (transactions, stock updates) with agent trigger events
 - [ ] Add structured logging for LLM calls and agent steps (trace IDs, input/output summaries)
 - [ ] Implement SSE endpoint for agent event stream (thought/action/observation/final)

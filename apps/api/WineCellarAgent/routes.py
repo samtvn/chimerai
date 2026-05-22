@@ -1,7 +1,7 @@
 """Example FastAPI routes for Wine Cellar Analysis Agent"""
 from fastapi import APIRouter, HTTPException, Depends
-from api.WineCellarAgent.service import WineCellarAnalysisService
-from api.WineCellarAgent.models import WineCellarAnalysis
+from WineCellarAgent.service import WineCellarAnalysisService
+from WineCellarAgent.models import WineCellarAnalysis
 from database.dependencies import get_read_db
 from database.repositories.cellar_repository import CellarRepository
 

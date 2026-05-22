@@ -1,13 +1,18 @@
 """Orchestrator Agent for wine cellar management"""
 from langgraph.graph import StateGraph, END
 from .state import OrchestratorState
-from .event_manager import event_manager, Event
+from .event_manager import event_manager
 from .events import AnalysisRunEvent, WineSoldEvent
 import uuid
 from uuid import UUID
-from ..database.repositories.cellar_repository import CellarRepository
+from database.repositories.cellar_repository import CellarRepository
 from .models import MarketSearchCriteria, RecommendationSearchPlan, OrchestratorSearchPlan
-from api.WineCellarAgent.models import CriticalityLevel, WineBuyingAspect, Recommendation
+from WineCellarAgent.models import CriticalityLevel, WineBuyingAspect, Recommendation
+from agents.event_bus import event_bus, AgentEvent
+from database.database import AsyncSessionLocal
+from database.dependencies import get_demo_user_id
+from database.repositories.recommendations_repository import RecommendationRepository
+from MarketAnalysisAgent.models import MarketAnalysisResult
 
 
 class CellarOrchestrator:
@@ -29,6 +34,7 @@ class CellarOrchestrator:
         workflow.add_node("analyze_cellar", self._analyze_cellar)
         workflow.add_node("build_search_plan", self._build_search_plan)
         workflow.add_node("run_market_analysis", self._run_market_analysis)
+        workflow.add_node("persist_recommendations", self._persist_recommendations)
 
         workflow.set_entry_point("decide_entry")
 
@@ -49,7 +55,8 @@ class CellarOrchestrator:
                 "end": END,
             },
         )
-        workflow.add_edge("run_market_analysis", END)
+        workflow.add_edge("run_market_analysis", "persist_recommendations")
+        workflow.add_edge("persist_recommendations", END)
 
         return workflow.compile()
 
@@ -58,13 +65,37 @@ class CellarOrchestrator:
         Checks for a trigger event and decides whether to start the analysis.
         """
         print("[Orchestrator] Checking for trigger event...")
+        if state.get("trigger_event"):
+            await event_bus.publish(
+                AgentEvent(
+                    source="orchestrator",
+                    type="trigger_detected",
+                    message=f"Trigger: {state['trigger_event']}",
+                )
+            )
+            return state
+
         last_event = event_manager.get_last_event()
         if last_event and isinstance(last_event, WineSoldEvent):
             print(f"[Orchestrator] Detected '{last_event.event_type}' event. Triggering analysis.")
             state["trigger_event"] = last_event.event_type
+            await event_bus.publish(
+                AgentEvent(
+                    source="orchestrator",
+                    type="trigger_detected",
+                    message=f"Trigger: {last_event.event_type}",
+                )
+            )
         else:
             print("[Orchestrator] No trigger event detected.")
             state["trigger_event"] = None
+            await event_bus.publish(
+                AgentEvent(
+                    source="orchestrator",
+                    type="idle",
+                    message="No trigger event detected",
+                )
+            )
         return state
 
     def _should_analyze_cellar(self, state: OrchestratorState) -> str:
@@ -78,7 +109,14 @@ class CellarOrchestrator:
     async def _analyze_cellar(self, state: OrchestratorState) -> OrchestratorState:
         """Run the wine cellar analysis"""
         print("[Orchestrator] Running cellar analysis...")
-        from api.WineCellarAgent.service import WineCellarAnalysisService
+        await event_bus.publish(
+            AgentEvent(
+                source="orchestrator",
+                type="analysis_started",
+                message="Cellar analysis started",
+            )
+        )
+        from WineCellarAgent.service import WineCellarAnalysisService
 
         service = WineCellarAnalysisService()
         analysis = await service.analyze_cellar(self.cellar_repo, user_id=self.user_id)
@@ -90,6 +128,13 @@ class CellarOrchestrator:
         event_manager.add_event(event)
         state["analysis_id"] = analysis_id
 
+        await event_bus.publish(
+            AgentEvent(
+                source="orchestrator",
+                type="analysis_completed",
+                message=f"Cellar analysis completed ({analysis_id})",
+            )
+        )
         print(f"[Orchestrator] Cellar analysis complete. Analysis ID: {analysis_id}")
 
         return state
@@ -105,9 +150,22 @@ class CellarOrchestrator:
 
     def _should_call_market_analysis(self, recommendation: Recommendation, priority_rank: int) -> bool:
         """Decide whether a recommendation should trigger market analysis."""
-        if priority_rank == 1:
-            return True
-        return recommendation.criticality in {CriticalityLevel.CRITICAL, CriticalityLevel.HIGH}
+        return True
+
+    def _build_pertinence_message(self, criticality: CriticalityLevel, fit_score: float) -> str:
+        """Explain how criticality impacts buying pertinence."""
+        criticality_label = criticality.value
+        if fit_score >= 0.7:
+            fit_note = "strong match"
+        elif fit_score >= 0.4:
+            fit_note = "moderate match"
+        else:
+            fit_note = "weak match"
+
+        return (
+            f"Criticality is {criticality_label}; market fit is a {fit_note}. "
+            "Use criticality as the urgency signal for the purchase decision."
+        )
 
     def _build_criteria(self, recommendation: Recommendation) -> MarketSearchCriteria:
         """Convert a structured recommendation into search-only criteria."""
@@ -144,6 +202,20 @@ class CellarOrchestrator:
                 criteria_values["food_pairing"] = parameter.target
 
         return MarketSearchCriteria(**criteria_values)
+
+    def _build_recommendation_reason(self, result: MarketAnalysisResult) -> str:
+        """Create a concise reason string for a persisted recommendation."""
+        fit_notes = "; ".join(result.fit_notes) if result.fit_notes else "No fit notes provided"
+        pertinence = result.buying_pertinence or "Buying pertinence not specified"
+        return f"{result.recommendation_title}. Fit notes: {fit_notes}. {pertinence}"
+
+    def _resolve_market_price(self, result: MarketAnalysisResult) -> float:
+        """Prefer per-bottle price, fall back to total price / quantity."""
+        if result.price_per_bottle is not None:
+            return result.price_per_bottle
+        if result.total_price is not None and result.quantity > 0:
+            return result.total_price / result.quantity
+        return 0.0
 
     def _should_run_market_analysis(self, state: OrchestratorState) -> str:
         """Route to market analysis if any recommendation requires it."""
@@ -192,13 +264,21 @@ class CellarOrchestrator:
 
             search_plan = OrchestratorSearchPlan(recommendations=search_recommendations)
             state["search_plan"] = search_plan
-            state["missing_wine_categories"] = [
-                item.title for item in search_recommendations if item.should_call_market_analysis
-            ]
-            state["needs_market_analysis"] = any(
-                item.should_call_market_analysis for item in search_recommendations
+            state["missing_wine_categories"] = [item.title for item in search_recommendations]
+            state["needs_market_analysis"] = True
+            state["should_call_market_analysis"] = True
+
+            await event_bus.publish(
+                AgentEvent(
+                    source="orchestrator",
+                    type="market_analysis_decision",
+                    message=(
+                        "Market analysis needed"
+                        if state["needs_market_analysis"]
+                        else "Market analysis not needed"
+                    ),
+                )
             )
-            state["should_call_market_analysis"] = state["needs_market_analysis"]
 
             print(f"\n[Orchestrator] Prepared {len(search_recommendations)} search items:")
             for item in search_recommendations:
@@ -219,34 +299,85 @@ class CellarOrchestrator:
                 state["market_analysis_results"] = []
                 return state
 
-            from api.MarketAnalysisAgent.service import MarketAnalysisService
+            await event_bus.publish(
+                AgentEvent(
+                    source="orchestrator",
+                    type="market_analysis_started",
+                    message="Market analysis started",
+                )
+            )
+
+            from MarketAnalysisAgent.service import MarketAnalysisService
 
             results = []
             for item in search_plan.recommendations:
-                if not item.should_call_market_analysis:
-                    continue
                 result = await MarketAnalysisService.analyze_recommendation(
                     criteria=item.criteria.model_dump(),
                     quantity=item.quantity_to_buy,
                     recommendation_title=item.title,
                 )
-                results.append(result)
+                results.append(
+                    result.model_copy(
+                        update={
+                            "recommendation_criticality": item.criticality.value,
+                            "buying_pertinence": self._build_pertinence_message(
+                                item.criticality,
+                                result.fit_score,
+                            ),
+                        }
+                    )
+                )
 
             state["market_analysis_results"] = results
+            await event_bus.publish(
+                AgentEvent(
+                    source="orchestrator",
+                    type="market_analysis_completed",
+                    message=f"Market analysis completed ({len(results)} results)",
+                )
+            )
             return state
         except Exception as e:
             state["error"] = f"Market analysis failed: {str(e)}"
             return state
 
-    async def run(self) -> OrchestratorState:
+    async def _persist_recommendations(self, state: OrchestratorState) -> OrchestratorState:
+        """Persist market analysis recommendations to the database."""
+        results = state.get("market_analysis_results") or []
+        if not results:
+            state["recommendations_saved"] = 0
+            return state
+
+        try:
+            async with AsyncSessionLocal() as session:
+                user_id = self.user_id or await get_demo_user_id(session)
+                repo = RecommendationRepository(session, read_only=False)
+                for result in results:
+                    await repo.create(
+                        user_id=user_id,
+                        wine_id=result.wine_id,
+                        quantity=result.quantity,
+                        market_price=self._resolve_market_price(result),
+                        priority_score=result.fit_score,
+                        recommendation_reason=self._build_recommendation_reason(result),
+                    )
+                state["recommendations_saved"] = len(results)
+            return state
+        except Exception as e:
+            state["error"] = f"Recommendation persistence failed: {str(e)}"
+            return state
+
+    async def run(self, trigger_event: str | None = None) -> OrchestratorState:
         """Execute the orchestrator workflow"""
         try:
             initial_state: OrchestratorState = {
+                "trigger_event": trigger_event,
                 "needs_market_analysis": False,
                 "missing_wine_categories": [],
                 "should_call_market_analysis": False,
                 "search_plan": None,
                 "market_analysis_results": [],
+                "recommendations_saved": 0,
             }
             result = await self.graph.ainvoke(initial_state)
             return result

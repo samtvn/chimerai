@@ -3,7 +3,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
-from api.WineCellarAgent.models import CriticalityLevel
+from WineCellarAgent.models import CriticalityLevel
 
 
 class MarketSearchCriteria(BaseModel):

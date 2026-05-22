@@ -12,6 +12,8 @@ from database.repositories.transactions_repository import TransactionRepository
 from database.repositories.cellar_repository import CellarRepository
 from database.models.transactions import TransactionType
 from database.models.cellar import BottleStatus
+from agents.event_bus import event_bus, AgentEvent
+import json
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
@@ -115,16 +117,20 @@ async def create_transaction(body: TransactionCreate, db: AsyncSession = Depends
 
     await db.refresh(txn)
 
-    try:
-        from agents.orchestrator import run_orchestrator
-        asyncio.create_task(
-            run_orchestrator(
-                trigger=f"transaction_{body.type.value}",
-                data={"wine_id": body.wine_id, "quantity": body.quantity, "type": body.type.value},
+    if body.type == TransactionType.SALE:
+        await event_bus.publish(
+            AgentEvent(
+                source="transactions",
+                type="wine_sold",
+                message=json.dumps(
+                    {
+                        "wine_id": body.wine_id,
+                        "quantity": body.quantity,
+                        "type": body.type.value,
+                    }
+                ),
             )
         )
-    except Exception:
-        pass
 
     return {
         "id": str(txn.id),

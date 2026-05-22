@@ -1,9 +1,9 @@
 """Service module for Sales Analysis Agent."""
 from uuid import UUID
 
-from api.SalesAnalysisAgent.agent import SalesAnalysisAgent
-from api.SalesAnalysisAgent.models import SalesAnalysisFocus, SalesAnalysisResult
-from ..database.repositories.cellar_repository import CellarRepository
+from .agent import SalesAnalysisAgent
+from .models import SalesAnalysisFocus, SalesAnalysisResult
+from database.repositories.cellar_repository import CellarRepository
 
 
 class SalesAnalysisService:

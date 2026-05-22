@@ -9,11 +9,11 @@ load_dotenv()
 async def test_orchestrator():
     """Test the orchestrator agent"""
     try:
-        from api.Orchestrator.orchestrator import CellarOrchestrator
-        from api.Orchestrator.event_manager import event_manager
-        from api.Orchestrator.events import WineSoldEvent
-        from api.database.database import AsyncReadSessionLocal
-        from ..database.repositories.cellar_repository import CellarRepository
+        from Orchestrator.orchestrator import CellarOrchestrator
+        from Orchestrator.event_manager import event_manager
+        from Orchestrator.events import WineSoldEvent
+        from database.database import AsyncReadSessionLocal
+        from database.repositories.cellar_repository import CellarRepository
 
         print("=" * 70)
         print("Wine Cellar Orchestrator - Test")

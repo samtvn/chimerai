@@ -1,8 +1,8 @@
 """FastAPI routes for Sales Analysis Agent."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.SalesAnalysisAgent.models import SalesAnalysisFocus, SalesAnalysisResult
-from api.SalesAnalysisAgent.service import SalesAnalysisService
+from SalesAnalysisAgent.models import SalesAnalysisFocus, SalesAnalysisResult
+from SalesAnalysisAgent.service import SalesAnalysisService
 from database.dependencies import get_read_db
 from database.repositories.cellar_repository import CellarRepository
 

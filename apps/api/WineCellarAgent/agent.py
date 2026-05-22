@@ -2,13 +2,13 @@
 import json
 from typing import Any
 from uuid import UUID
-from ..database.repositories.cellar_repository import CellarRepository
+from database.repositories.cellar_repository import CellarRepository
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
-from api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
-from api.WineCellarAgent.state import WineCellarAgentState
-from api.WineCellarAgent.repository import WineCellarRepository
-from api.WineCellarAgent.models import (
+from llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
+from .state import WineCellarAgentState
+from .repository import WineCellarRepository
+from .models import (
     CriticalityLevel,
     Recommendation,
     RecommendationPlan,

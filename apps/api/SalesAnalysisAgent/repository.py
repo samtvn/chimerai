@@ -7,11 +7,11 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
 
-from ..database.models.cellar import BottleStatus, Cellar
-from ..database.models.transactions import Transaction, TransactionType
-from ..database.models.users import User
-from ..database.models.wines import Wine
-from ..database.repositories.cellar_repository import CellarRepository
+from database.models.cellar import BottleStatus, Cellar
+from database.models.transactions import Transaction, TransactionType
+from database.models.users import User
+from database.models.wines import Wine
+from database.repositories.cellar_repository import CellarRepository
 from .models import SalesAnalysisFocus, SalesMover
 
 

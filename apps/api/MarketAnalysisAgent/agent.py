@@ -6,9 +6,9 @@ from typing import Optional, Tuple
 
 from sqlalchemy import and_, select
 
-from api.MarketAnalysisAgent.models import MarketAnalysisCriteria, MarketAnalysisResult
-from api.database.database import AsyncReadSessionLocal
-from api.database.models.wines import Wine
+from .models import MarketAnalysisCriteria, MarketAnalysisResult
+from database.database import AsyncReadSessionLocal
+from database.models.wines import Wine
 
 
 class MarketAnalysisAgent:

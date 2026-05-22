@@ -9,8 +9,8 @@ from langchain_core.messages import HumanMessage
 from langgraph.graph import END, StateGraph
 from pydantic import ValidationError
 
-from api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
-from api.SalesAnalysisAgent.models import (
+from llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
+from .models import (
     CriticalityLevel,
     RecommendationType,
     SalesAnalysisFocus,
@@ -19,9 +19,9 @@ from api.SalesAnalysisAgent.models import (
     SalesRecommendation,
     SalesRecommendationPlan,
 )
-from api.SalesAnalysisAgent.repository import SalesAnalysisRepository
-from api.SalesAnalysisAgent.state import SalesAnalysisAgentState
-from ..database.repositories.cellar_repository import CellarRepository
+from .repository import SalesAnalysisRepository
+from .state import SalesAnalysisAgentState
+from database.repositories.cellar_repository import CellarRepository
 
 
 class SalesAnalysisAgent:

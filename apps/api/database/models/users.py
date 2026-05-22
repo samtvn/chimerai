@@ -4,6 +4,8 @@ from uuid import UUID
 from uuid6 import uuid7
 from sqlmodel import Field, Relationship, SQLModel
 
+from database.models.recommendations import Recommendation
+
 if TYPE_CHECKING:
     from .cellar import Cellar
     from .transactions import Transaction
@@ -29,3 +31,4 @@ class User(SQLModel, table=True):
 
     cellars: List["Cellar"] = Relationship(back_populates="user")
     transactions: List["Transaction"] = Relationship(back_populates="user")
+    recommendations: List["Recommendation"] = Relationship(back_populates="user")

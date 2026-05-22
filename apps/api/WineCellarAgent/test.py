@@ -35,7 +35,7 @@ def check_env():
 async def test_basic_import():
     """Test that all modules can be imported"""
     try:
-        from api.WineCellarAgent.models import (
+        from WineCellarAgent.models import (
             CriticalityLevel,
             Recommendation,
             RecommendationPlan,
@@ -43,11 +43,11 @@ async def test_basic_import():
             WineBuyingParameter,
             WineCellarAnalysis,
         )
-        from api.WineCellarAgent.state import WineCellarAgentState
-        from api.WineCellarAgent.repository import WineCellarRepository
-        from api.WineCellarAgent.agent import WineCellarAgent
-        from api.WineCellarAgent.service import WineCellarAnalysisService
-        from ..database.repositories.cellar_repository import CellarRepository
+        from WineCellarAgent.state import WineCellarAgentState
+        from WineCellarAgent.repository import WineCellarRepository
+        from WineCellarAgent.agent import WineCellarAgent
+        from WineCellarAgent.service import WineCellarAnalysisService
+        from database.repositories.cellar_repository import CellarRepository
 
         print("✓ All modules imported successfully")
         return True
@@ -59,7 +59,7 @@ async def test_basic_import():
 async def test_structured_models():
     """Test the structured recommendation schema validates correctly"""
     try:
-        from api.WineCellarAgent.models import (
+        from WineCellarAgent.models import (
             CriticalityLevel,
             Recommendation,
             RecommendationPlan,
@@ -110,9 +110,9 @@ async def test_structured_models():
 async def test_database_connection():
     """Test database connection"""
     try:
-        from api.WineCellarAgent.repository import WineCellarRepository
-        from api.database.database import AsyncReadSessionLocal
-        from ..database.repositories.cellar_repository import CellarRepository
+        from WineCellarAgent.repository import WineCellarRepository
+        from database.database import AsyncReadSessionLocal
+        from database.repositories.cellar_repository import CellarRepository
 
         async with AsyncReadSessionLocal() as session:
             cellar_repo = CellarRepository(session, read_only=True)
@@ -129,9 +129,9 @@ async def test_full_analysis():
     """Run a full analysis (this requires valid database and API key)"""
     try:
         print("\nRunning full wine cellar analysis...")
-        from api.WineCellarAgent.service import WineCellarAnalysisService
-        from api.database.database import AsyncReadSessionLocal
-        from ..database.repositories.cellar_repository import CellarRepository
+        from WineCellarAgent.service import WineCellarAnalysisService
+        from database.database import AsyncReadSessionLocal
+        from database.repositories.cellar_repository import CellarRepository
         import json
 
         async with AsyncReadSessionLocal() as session:

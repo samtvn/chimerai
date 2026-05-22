@@ -43,3 +43,11 @@ class MarketAnalysisResult(BaseModel):
     fit_score: float = Field(..., ge=0.0, le=1.0, description="How well the wine fits the criteria")
     fit_notes: List[str] = Field(default_factory=list, description="Notes describing the fit")
     criteria: MarketAnalysisCriteria = Field(..., description="Criteria used for the selection")
+    recommendation_criticality: Optional[str] = Field(
+        default=None,
+        description="Criticality level carried from cellar recommendation",
+    )
+    buying_pertinence: Optional[str] = Field(
+        default=None,
+        description="Narrative about how criticality impacts buying pertinence",
+    )

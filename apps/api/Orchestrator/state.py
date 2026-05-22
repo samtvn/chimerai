@@ -2,7 +2,7 @@
 from typing import TypedDict, Optional, Any
 
 from .models import OrchestratorSearchPlan
-from api.MarketAnalysisAgent.models import MarketAnalysisResult
+from MarketAnalysisAgent.models import MarketAnalysisResult
 
 
 class OrchestratorState(TypedDict, total=False):
@@ -16,6 +16,9 @@ class OrchestratorState(TypedDict, total=False):
 
     # Market analysis output
     market_analysis_results: Optional[list[MarketAnalysisResult]]
+
+    # Persisted recommendations
+    recommendations_saved: int
 
     # Decision flags
     needs_market_analysis: bool

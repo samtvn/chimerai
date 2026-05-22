@@ -1,9 +1,9 @@
 """Service module for Wine Cellar Analysis - provides high-level interface"""
 import asyncio
 from uuid import UUID
-from api.WineCellarAgent.agent import WineCellarAgent
-from api.WineCellarAgent.models import WineCellarAnalysis
-from ..database.repositories.cellar_repository import CellarRepository
+from .agent import WineCellarAgent
+from .models import WineCellarAnalysis
+from database.repositories.cellar_repository import CellarRepository
 
 
 class WineCellarAnalysisService:
@@ -33,7 +33,7 @@ async def example_usage():
     print("Starting Wine Cellar Analysis...")
 
     try:
-        from api.database.database import AsyncReadSessionLocal
+        from database.database import AsyncReadSessionLocal
         from database.repositories.cellar_repository import CellarRepository
 
         async with AsyncReadSessionLocal() as session:
