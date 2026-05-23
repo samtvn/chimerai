@@ -26,4 +26,4 @@ class Alert(SQLModel, table=True):
     read: bool = Field(default=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    user: "User" = Relationship()
+    user: "User" = Relationship(back_populates="alerts")

@@ -3,7 +3,7 @@
 from typing import TypedDict, Optional, Any
 
 from .models import OrchestratorSearchPlan
-from MarketAnalysisAgent.models import MarketAnalysisResult
+from apps.api.MarketAnalysisAgent.models import MarketAnalysisResult
 
 
 class OrchestratorState(TypedDict, total=False):

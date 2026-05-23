@@ -3,10 +3,10 @@
 from uuid import UUID
 import asyncio
 from .orchestrator import CellarOrchestrator
-from database.repositories.cellar_repository import CellarRepository
-from agents.event_bus import event_bus, AgentEvent
-from database.database import AsyncReadSessionLocal
-from database.dependencies import get_demo_user_id
+from apps.api.database.repositories.cellar_repository import CellarRepository
+from apps.api.agents.event_bus import event_bus, AgentEvent
+from apps.api.database.database import AsyncReadSessionLocal
+from apps.api.database.dependencies import get_demo_user_id
 
 
 class OrchestratorService:

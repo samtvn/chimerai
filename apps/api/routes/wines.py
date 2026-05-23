@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.dependencies import get_read_db
-from database.models.wines import Wine
-from database.repositories.wine_repository import WineRepository
+from apps.api.database.dependencies import get_read_db
+from apps.api.database.models.wines import Wine
+from apps.api.database.repositories.wine_repository import WineRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 

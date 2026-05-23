@@ -4,10 +4,10 @@ from typing import List, Optional
 from uuid import UUID
 from sqlalchemy import func, select
 
-from database.models.cellar import BottleStatus, Cellar
-from database.models.users import User
-from database.models.wines import Wine
-from database.repositories.cellar_repository import CellarRepository
+from apps.api.database.models.cellar import BottleStatus, Cellar
+from apps.api.database.models.users import User
+from apps.api.database.models.wines import Wine
+from apps.api.database.repositories.cellar_repository import CellarRepository
 
 
 class WineCellarRepository:

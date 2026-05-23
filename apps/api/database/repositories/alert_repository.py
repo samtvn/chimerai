@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from uuid import UUID
 
-from database.models.alerts import Alert
+from apps.api.database.models.alerts import Alert
 from .base import BaseRepository
 
 

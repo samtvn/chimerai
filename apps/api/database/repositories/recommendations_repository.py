@@ -4,7 +4,7 @@ from sqlalchemy.orm import selectinload
 from typing import List
 from uuid import UUID
 
-from database.models.recommendations import Recommendation
+from apps.api.database.models.recommendations import Recommendation
 from .base import BaseRepository
 
 

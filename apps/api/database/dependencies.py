@@ -9,8 +9,8 @@ Usage:
 from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from database.database import AsyncSessionLocal, AsyncReadSessionLocal
-from database.repositories.user_repository import UserRepository
+from apps.api.database.database import AsyncSessionLocal, AsyncReadSessionLocal
+from apps.api.database.repositories.user_repository import UserRepository
 
 
 async def get_db() -> AsyncSession:

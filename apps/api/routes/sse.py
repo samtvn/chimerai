@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 import asyncio
 
-from agents.event_bus import event_bus
+from apps.api.agents.event_bus import event_bus
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 

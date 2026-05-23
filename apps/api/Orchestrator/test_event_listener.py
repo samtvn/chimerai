@@ -2,8 +2,8 @@ import asyncio
 from contextlib import suppress
 from uuid import UUID
 
-from agents.event_bus import event_bus, AgentEvent
-from Orchestrator.service import OrchestratorService
+from apps.api.agents.event_bus import event_bus, AgentEvent
+from apps.api.Orchestrator.service import OrchestratorService
 import Orchestrator.service as orchestrator_service
 
 

@@ -13,13 +13,13 @@ import asyncio
 import os
 from uuid import uuid4
 
-from WineCardAgent.models import InventoryItem, Season, VatCountry
-from WineCardAgent.pricing import (
+from apps.api.WineCardAgent.models import InventoryItem, Season, VatCountry
+from apps.api.WineCardAgent.pricing import (
     VAT_RATES_BY_COUNTRY,
     calculate_restaurant_price_ttc,
     get_vat_rate,
 )
-from WineCardAgent.service import WineCardService
+from apps.api.WineCardAgent.service import WineCardService
 
 
 def _sample_inventory() -> list[InventoryItem]:

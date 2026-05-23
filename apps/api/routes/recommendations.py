@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.dependencies import get_read_db, get_demo_user_id
-from database.repositories.recommendations_repository import RecommendationRepository
+from apps.api.database.dependencies import get_read_db, get_demo_user_id
+from apps.api.database.repositories.recommendations_repository import RecommendationRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 

@@ -9,9 +9,9 @@ from sqlalchemy import and_, select
 from pydantic import BaseModel, Field
 
 from .models import MarketAnalysisCriteria, MarketAnalysisResult
-from database.database import AsyncReadSessionLocal
-from database.models.wines import Wine
-from llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
+from apps.api.database.database import AsyncReadSessionLocal
+from apps.api.database.models.wines import Wine
+from apps.api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
 
 
 class WineSelection(BaseModel):

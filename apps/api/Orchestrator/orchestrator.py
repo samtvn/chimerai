@@ -6,14 +6,14 @@ from .event_manager import event_manager
 from .events import AnalysisRunEvent, WineSoldEvent
 import uuid
 from uuid import UUID
-from database.repositories.cellar_repository import CellarRepository
+from apps.api.database.repositories.cellar_repository import CellarRepository
 from .models import MarketSearchCriteria, RecommendationSearchPlan, OrchestratorSearchPlan
-from WineCellarAgent.models import CriticalityLevel, WineBuyingAspect, Recommendation
-from agents.event_bus import event_bus, AgentEvent
-from database.database import AsyncSessionLocal
-from database.dependencies import get_demo_user_id
-from database.repositories.recommendations_repository import RecommendationRepository
-from MarketAnalysisAgent.models import MarketAnalysisResult
+from apps.api.WineCellarAgent.models import CriticalityLevel, WineBuyingAspect, Recommendation
+from apps.api.agents.event_bus import event_bus, AgentEvent
+from apps.api.database.database import AsyncSessionLocal
+from apps.api.database.dependencies import get_demo_user_id
+from apps.api.database.repositories.recommendations_repository import RecommendationRepository
+from apps.api.MarketAnalysisAgent.models import MarketAnalysisResult
 
 
 class CellarOrchestrator:

@@ -11,8 +11,8 @@ if str(API_PACKAGE_DIR) not in sys.path:
     # Allow running directly without PYTHONPATH
     sys.path.insert(0, str(API_PACKAGE_DIR))
 
-from agents.event_bus import event_bus, AgentEvent
-from Orchestrator.service import OrchestratorService
+from apps.api.agents.event_bus import event_bus, AgentEvent
+from apps.api.Orchestrator.service import OrchestratorService
 
 
 async def _print_bus_events(duration_seconds: int = 10) -> None:

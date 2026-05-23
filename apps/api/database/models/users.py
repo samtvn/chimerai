@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from .cellar import Cellar
     from .recommendations import Recommendation
     from .transactions import Transaction
+    from .menu import MenuItem
+    from .alerts import Alert
 
 
 class UserType(str, Enum):
@@ -32,3 +34,5 @@ class User(SQLModel, table=True):
     cellars: List["Cellar"] = Relationship(back_populates="user")
     transactions: List["Transaction"] = Relationship(back_populates="user")
     recommendations: List["Recommendation"] = Relationship(back_populates="user")
+    menu_items: List["MenuItem"] = Relationship(back_populates="user")
+    alerts: List["Alert"] = Relationship(back_populates="user")

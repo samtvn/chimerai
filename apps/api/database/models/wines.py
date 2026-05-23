@@ -4,6 +4,8 @@ from sqlmodel import Field, Relationship, SQLModel
 if TYPE_CHECKING:
     from .cellar import Cellar
     from .transactions import Transaction
+    from .recommendations import Recommendation
+    from .menu import MenuItem
 
 
 # Define Wine without relationships first
@@ -26,3 +28,5 @@ class Wine(SQLModel, table=True):
 
     cellars: List["Cellar"] = Relationship(back_populates="wine")
     transactions: List["Transaction"] = Relationship(back_populates="wine")
+    recommendations: List["Recommendation"] = Relationship(back_populates="wine")
+    menu_items: List["MenuItem"] = Relationship(back_populates="wine")

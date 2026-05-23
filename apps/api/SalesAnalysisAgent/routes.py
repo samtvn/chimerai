@@ -2,10 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from SalesAnalysisAgent.models import SalesAnalysisFocus, SalesAnalysisResult
-from SalesAnalysisAgent.service import SalesAnalysisService
-from database.dependencies import get_read_db
-from database.repositories.cellar_repository import CellarRepository
+from apps.api.SalesAnalysisAgent.models import SalesAnalysisFocus, SalesAnalysisResult
+from apps.api.SalesAnalysisAgent.service import SalesAnalysisService
+from apps.api.database.dependencies import get_read_db
+from apps.api.database.repositories.cellar_repository import CellarRepository
 
 router = APIRouter(prefix="/sales", tags=["sales-analysis"])
 

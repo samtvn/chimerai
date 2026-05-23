@@ -4,7 +4,7 @@ from uuid import UUID
 
 from .agent import SalesAnalysisAgent
 from .models import SalesAnalysisFocus, SalesAnalysisResult
-from database.repositories.cellar_repository import CellarRepository
+from apps.api.database.repositories.cellar_repository import CellarRepository
 
 
 class SalesAnalysisService:

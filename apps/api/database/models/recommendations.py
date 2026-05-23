@@ -22,5 +22,5 @@ class Recommendation(SQLModel, table=True):
     recommendation_reason: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    user: "User" = Relationship()
-    wine: "Wine" = Relationship()
+    user: "User" = Relationship(back_populates="recommendations")
+    wine: "Wine" = Relationship(back_populates="recommendations")

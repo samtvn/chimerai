@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from Orchestrator.service import OrchestratorService
-from database.dependencies import get_read_db, get_demo_user_id
-from database.repositories.cellar_repository import CellarRepository
+from apps.api.Orchestrator.service import OrchestratorService
+from apps.api.database.dependencies import get_read_db, get_demo_user_id
+from apps.api.database.repositories.cellar_repository import CellarRepository
 
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
 

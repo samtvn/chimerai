@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.dependencies import get_read_db, get_demo_user_id
-from database.repositories.wine_repository import WineRepository
-from database.repositories.cellar_repository import CellarRepository
+from apps.api.database.dependencies import get_read_db, get_demo_user_id
+from apps.api.database.repositories.wine_repository import WineRepository
+from apps.api.database.repositories.cellar_repository import CellarRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 

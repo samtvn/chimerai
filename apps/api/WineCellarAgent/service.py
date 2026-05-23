@@ -4,7 +4,7 @@ import asyncio
 from uuid import UUID
 from .agent import WineCellarAgent
 from .models import WineCellarAnalysis
-from database.repositories.cellar_repository import CellarRepository
+from apps.api.database.repositories.cellar_repository import CellarRepository
 
 
 class WineCellarAnalysisService:

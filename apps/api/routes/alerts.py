@@ -3,10 +3,10 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
-from database.dependencies import get_db, get_read_db, get_demo_user_id
-from database.models.alerts import AlertSeverity
-from database.repositories.alert_repository import AlertRepository
-from agents.event_bus import event_bus, AgentEvent
+from apps.api.database.dependencies import get_db, get_read_db, get_demo_user_id
+from apps.api.database.models.alerts import AlertSeverity
+from apps.api.database.repositories.alert_repository import AlertRepository
+from apps.api.agents.event_bus import event_bus, AgentEvent
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 

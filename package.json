@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev:web": "pnpm --filter chimerai-web dev --host 0.0.0.0",
-    "dev:api": "uv run --project apps/api uvicorn main:app --reload --app-dir apps/api --host 0.0.0.0",
+    "dev:api": "bash apps/api/run_dev.sh",
     "dev": "pnpm run dev:web & pnpm run dev:api",
     "build:web": "pnpm --filter chimerai-web build",
     "build": "pnpm run build:web",
