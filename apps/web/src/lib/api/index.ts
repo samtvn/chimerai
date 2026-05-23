@@ -82,6 +82,76 @@ export interface Recommendation {
   created_at: string;
 }
 
+export type WineCardSeason = "spring" | "summer" | "autumn" | "winter";
+export type VatCountry = "LU" | "FR" | "BE" | "DE";
+
+export interface WineCardInventoryItem {
+  wine_id: number;
+  producer: string;
+  wine_name: string;
+  region: string | null;
+  country: string | null;
+  appellation: string | null;
+  wine_color: string | null;
+  vintage: string | null;
+  grape_variety: string | null;
+  drink_from: number | null;
+  drink_to: number | null;
+  quantity: number;
+  purchase_price_ht: number;
+  avg_market_price: number | null;
+}
+
+export interface WineCardPricingResult {
+  purchase_price_ht: number;
+  vat_country: VatCountry;
+  markup_coefficient: number;
+  vat_rate: number;
+  selling_price_ht: number;
+  selling_price_ttc: number;
+  glass_price_ttc: number;
+}
+
+export interface WineCardMenuItem {
+  section: string;
+  vat_country: VatCountry;
+  vat_rate: number;
+  wine_id: number;
+  producer: string;
+  wine_name: string;
+  vintage: string | null;
+  region: string | null;
+  appellation: string | null;
+  country: string | null;
+  quantity: number;
+  purchase_price_ht: number;
+  avg_market_price: number | null;
+  selling_price_ttc: number;
+  glass_price_ttc: number;
+}
+
+export interface WineCardMenuExportResult {
+  season: WineCardSeason;
+  vat_country: VatCountry;
+  items_count: number;
+  markdown: string;
+  menu_items: WineCardMenuItem[];
+}
+
+export interface WineCardMenuAnalysis {
+  season: WineCardSeason;
+  strategy: {
+    focus: string[];
+    avoid: string[];
+    notes: string;
+  };
+  summary: string;
+  missing_categories: string[];
+  low_stock_warnings: string[];
+  by_the_glass_suggestions: string[];
+  section_counts: Record<string, number>;
+}
+
 export const api = {
   wines: {
     list: (params?: { color?: string; region?: string; appellation?: string, search?: string; limit?: number }) => {
@@ -167,5 +237,23 @@ export const api = {
       if (params?.limit) q.set("limit", String(params.limit));
       return fetchApi<{ recommendations: Recommendation[] }>(`/recommendations?${q}`);
     },
+  },
+
+  wineCard: {
+    inventory: () =>
+      fetchApi<{ items: WineCardInventoryItem[]; total: number }>("/wine-card/inventory"),
+    previewPricing: (purchase_price_ht: number, vat_country: VatCountry = "LU") =>
+      fetchApi<WineCardPricingResult>("/wine-card/pricing/preview", {
+        method: "POST",
+        body: JSON.stringify({ purchase_price_ht, vat_country }),
+      }),
+    exportEditableMenu: (season: WineCardSeason, vat_country: VatCountry = "LU") =>
+      fetchApi<WineCardMenuExportResult>(
+        `/wine-card/menu/export?season=${season}&vat_country=${vat_country}`
+      ),
+    analyzeMenu: (season: WineCardSeason, vat_country: VatCountry = "LU") =>
+      fetchApi<WineCardMenuAnalysis>(
+        `/wine-card/menu/analysis?season=${season}&vat_country=${vat_country}`
+      ),
   },
 };
