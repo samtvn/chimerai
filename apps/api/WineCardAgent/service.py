@@ -116,12 +116,16 @@ class WineCardService:
         strategy = SEASONAL_STRATEGIES[season]
 
         section_counts = Counter(self._map_section(item.wine_color) for item in inventory)
-        missing_categories = [section for section in SECTION_ORDER if section_counts.get(section, 0) == 0]
+        missing_categories = [
+            section for section in SECTION_ORDER if section_counts.get(section, 0) == 0
+        ]
 
         low_stock_warnings = []
         for item in sorted(inventory, key=lambda i: (i.quantity, i.wine_name)):
             if item.quantity <= 2:
-                low_stock_warnings.append(f"{item.producer} — {item.wine_name}: only {item.quantity} bottle(s)")
+                low_stock_warnings.append(
+                    f"{item.producer} — {item.wine_name}: only {item.quantity} bottle(s)"
+                )
             if len(low_stock_warnings) >= 10:
                 break
 

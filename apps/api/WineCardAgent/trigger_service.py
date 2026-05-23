@@ -177,4 +177,3 @@ class WineCardTriggerService:
             pass
         finally:
             event_bus.unsubscribe(queue)
-
