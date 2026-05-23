@@ -80,6 +80,7 @@ class _FakeWineCardRepository:
 def test_imports():
     from WineCardAgent.routes import router  # noqa: F401
     from WineCardAgent.repository import WineCardRepository  # noqa: F401
+    from WineCardAgent.trigger_service import WineCardTriggerService  # noqa: F401
 
     assert True
 

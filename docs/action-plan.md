@@ -11,7 +11,7 @@ Status markers: [ ] not started, [~] in progress, [x] done
 
 ## Data/Integration Engineer : Jun
 
-- [ ] Align DB schema with MVP (decide which spec tables to implement now vs defer)
+- [x] Align DB schema with MVP (decide which spec tables to implement now vs defer)
 - [ ] Replace in-memory event queue with persistent event storage
 - [ ] Add low-stock watcher background job (configurable thresholds)
 - [ ] Seed realistic demo data for sales + stock trend coverage

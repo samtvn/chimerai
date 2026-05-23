@@ -23,6 +23,7 @@ from SalesAnalysisAgent.routes import router as sales_analysis_router
 from Orchestrator.routes import router as orchestrator_router
 from routes.recommendations import router as recommendations_router
 from WineCardAgent.routes import router as wine_card_router
+from WineCardAgent.trigger_service import WineCardTriggerService
 # _scheduler_task = None
 
 # async def _periodic_analysis():
@@ -39,6 +40,7 @@ from WineCardAgent.routes import router as wine_card_router
 async def lifespan(app: FastAPI):
     # global _scheduler_task
     listener_task = asyncio.create_task(OrchestratorService.run_event_listener())
+    wine_card_listener_task = asyncio.create_task(WineCardTriggerService.run_event_listener())
     print("🚀 Starting Chimerai API")
     print("📊 Verifying database connection...")
     async with engine.begin():
@@ -51,8 +53,11 @@ async def lifespan(app: FastAPI):
 
     print("🛑 Shutting down Chimerai API")
     listener_task.cancel()
+    wine_card_listener_task.cancel()
     with suppress(asyncio.CancelledError):
         await listener_task
+    with suppress(asyncio.CancelledError):
+        await wine_card_listener_task
     # if _scheduler_task:
     #     _scheduler_task.cancel()
     await engine.dispose()
