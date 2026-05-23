@@ -1,0 +1,2 @@
+"""Wine card module."""
+

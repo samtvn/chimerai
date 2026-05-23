@@ -22,6 +22,7 @@ from WineCellarAgent.routes import router as wine_cellar_router
 from SalesAnalysisAgent.routes import router as sales_analysis_router
 from Orchestrator.routes import router as orchestrator_router
 from routes.recommendations import router as recommendations_router
+from WineCardAgent.routes import router as wine_card_router
 # _scheduler_task = None
 
 # async def _periodic_analysis():
@@ -84,6 +85,7 @@ app.include_router(wine_cellar_router)
 app.include_router(sales_analysis_router)
 app.include_router(orchestrator_router)
 app.include_router(recommendations_router)
+app.include_router(wine_card_router)
 
 
 @app.get("/")
