@@ -84,6 +84,7 @@ export interface Recommendation {
 
 export type WineCardSeason = "spring" | "summer" | "autumn" | "winter";
 export type VatCountry = "LU" | "FR" | "BE" | "DE";
+export type WineCardTriggerReason = "manual" | "wine_sold" | "low_stock_scan";
 
 export interface WineCardInventoryItem {
   wine_id: number;
@@ -150,6 +151,24 @@ export interface WineCardMenuAnalysis {
   low_stock_warnings: string[];
   by_the_glass_suggestions: string[];
   section_counts: Record<string, number>;
+}
+
+export interface WineCardTriggerReport {
+  trigger_reason: WineCardTriggerReason;
+  triggered_at: string;
+  season: WineCardSeason;
+  vat_country: VatCountry;
+  min_stock_threshold: number;
+  inventory_items: number;
+  low_stock_count: number;
+  should_refresh_menu: boolean;
+  should_consider_purchase: boolean;
+  low_stock_items: string[];
+  procurement_suggestions: string[];
+  sales_boost_suggestions: string[];
+  wine_fair_watchlist: string[];
+  menu_export: WineCardMenuExportResult | null;
+  menu_analysis: WineCardMenuAnalysis | null;
 }
 
 export const api = {
@@ -255,5 +274,16 @@ export const api = {
       fetchApi<WineCardMenuAnalysis>(
         `/wine-card/menu/analysis?season=${season}&vat_country=${vat_country}`
       ),
+    runTrigger: (
+      reason: WineCardTriggerReason = "manual",
+      season: WineCardSeason = "winter",
+      vat_country: VatCountry = "LU",
+      min_stock_threshold = 2,
+    ) =>
+      fetchApi<WineCardTriggerReport>(
+        `/wine-card/trigger/run?reason=${reason}&season=${season}&vat_country=${vat_country}&min_stock_threshold=${min_stock_threshold}`,
+        { method: "POST" }
+      ),
+    latestTrigger: () => fetchApi<WineCardTriggerReport | null>("/wine-card/trigger/latest"),
   },
 };

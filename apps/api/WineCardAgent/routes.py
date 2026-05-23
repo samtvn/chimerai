@@ -7,10 +7,19 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.dependencies import get_demo_user_id, get_read_db
-from .models import MenuAnalysisResult, MenuExportResult, PricingResult, Season, VatCountry
+from .models import (
+    MenuAnalysisResult,
+    MenuExportResult,
+    PricingResult,
+    Season,
+    TriggerReason,
+    VatCountry,
+    WineCardTriggerReport,
+)
 from .pricing import calculate_restaurant_price_ttc
 from .repository import WineCardRepository
 from .service import WineCardService
+from .trigger_service import WineCardTriggerService
 
 router = APIRouter(prefix="/api/wine-card", tags=["wine-card"])
 
@@ -73,3 +82,26 @@ async def analyze_wine_menu(
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to analyze menu: {exc}") from exc
+
+
+@router.post("/trigger/run", response_model=WineCardTriggerReport)
+async def run_wine_card_trigger(
+    reason: TriggerReason = TriggerReason.MANUAL,
+    season: Season = Season.WINTER,
+    vat_country: VatCountry = VatCountry.LU,
+    min_stock_threshold: int = 2,
+):
+    try:
+        return await WineCardTriggerService.run_once(
+            reason=reason,
+            season=season,
+            vat_country=vat_country,
+            min_stock_threshold=min_stock_threshold,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to run trigger: {exc}") from exc
+
+
+@router.get("/trigger/latest", response_model=WineCardTriggerReport | None)
+async def get_latest_wine_card_trigger_report():
+    return WineCardTriggerService.get_latest_report()

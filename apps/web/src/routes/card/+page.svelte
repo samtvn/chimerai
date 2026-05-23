@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ScrollText, Sparkles, AlertTriangle, RefreshCcw } from "@lucide/svelte";
-  import { api, type VatCountry, type WineCardInventoryItem, type WineCardMenuAnalysis, type WineCardMenuExportResult, type WineCardPricingResult, type WineCardSeason } from "$lib/api";
+  import { api, type VatCountry, type WineCardInventoryItem, type WineCardMenuAnalysis, type WineCardMenuExportResult, type WineCardPricingResult, type WineCardSeason, type WineCardTriggerReport } from "$lib/api";
 
   const seasons: WineCardSeason[] = ["spring", "summer", "autumn", "winter"];
   const vatCountries: VatCountry[] = ["LU", "FR", "BE", "DE"];
@@ -14,6 +14,9 @@
   let analysis = $state<WineCardMenuAnalysis | null>(null);
   let pricingPreviewInput = $state(18);
   let pricingPreview = $state<WineCardPricingResult | null>(null);
+  let triggerReport = $state<WineCardTriggerReport | null>(null);
+  let triggerRunning = $state(false);
+  let minStockThreshold = $state(2);
 
   async function loadWineCardData() {
     loading = true;
@@ -28,6 +31,7 @@
       exportedMenu = menu;
       analysis = report;
       pricingPreview = await api.wineCard.previewPricing(pricingPreviewInput, vatCountry);
+      triggerReport = await api.wineCard.latestTrigger();
     } catch (e: any) {
       error = e.message || "Failed to load wine-card data";
     } finally {
@@ -37,6 +41,29 @@
 
   async function refreshPricing() {
     pricingPreview = await api.wineCard.previewPricing(pricingPreviewInput, vatCountry);
+  }
+
+  async function runTriggerNow() {
+    triggerRunning = true;
+    error = "";
+    try {
+      triggerReport = await api.wineCard.runTrigger(
+        "manual",
+        season,
+        vatCountry,
+        minStockThreshold,
+      );
+      if (triggerReport.menu_export) {
+        exportedMenu = triggerReport.menu_export;
+      }
+      if (triggerReport.menu_analysis) {
+        analysis = triggerReport.menu_analysis;
+      }
+    } catch (e: any) {
+      error = e.message || "Failed to run trigger";
+    } finally {
+      triggerRunning = false;
+    }
   }
 
   $effect(() => {
@@ -62,6 +89,10 @@
       </select>
       <button class="btn btn-sm btn-ghost" onclick={loadWineCardData}>
         <RefreshCcw size="14" /> Refresh
+      </button>
+      <button class="btn btn-sm btn-primary" onclick={runTriggerNow} disabled={triggerRunning}>
+        {#if triggerRunning}<span class="loading loading-spinner loading-xs"></span>{/if}
+        Trigger
       </button>
     </div>
   </div>
@@ -96,6 +127,42 @@
           <div class="text-2xl font-bold">{analysis?.missing_categories.length ?? 0}</div>
           <div class="text-xs text-base-content/50">{analysis?.missing_categories.join(", ") || "None"}</div>
         </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 border border-primary-content">
+      <div class="card-body p-4 gap-3">
+        <h3 class="font-semibold">Auto Trigger Status</h3>
+        <div class="flex flex-wrap items-center gap-3 text-sm">
+          <span class="badge badge-outline">Min stock threshold</span>
+          <input class="input input-bordered input-sm w-24" type="number" min="1" bind:value={minStockThreshold} />
+        </div>
+        {#if triggerReport}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+            <div>Last reason</div><div class="font-medium">{triggerReport.trigger_reason}</div>
+            <div>Last run</div><div class="font-medium">{new Date(triggerReport.triggered_at).toLocaleString()}</div>
+            <div>Low stock count</div><div class="font-medium">{triggerReport.low_stock_count}</div>
+            <div>Needs purchase</div><div class="font-medium">{triggerReport.should_consider_purchase ? "yes" : "no"}</div>
+          </div>
+          {#if triggerReport.procurement_suggestions.length > 0}
+            <div class="mt-2 flex flex-col gap-1">
+              <div class="font-medium text-sm">Procurement suggestions</div>
+              {#each triggerReport.procurement_suggestions as suggestion}
+                <div class="text-sm bg-base-200 rounded-md px-2 py-1">{suggestion}</div>
+              {/each}
+            </div>
+          {/if}
+          {#if triggerReport.wine_fair_watchlist.length > 0}
+            <div class="mt-2 flex flex-col gap-1">
+              <div class="font-medium text-sm">Wine fair watchlist</div>
+              {#each triggerReport.wine_fair_watchlist as item}
+                <div class="text-sm bg-base-200 rounded-md px-2 py-1">{item}</div>
+              {/each}
+            </div>
+          {/if}
+        {:else}
+          <div class="text-sm text-base-content/60">No trigger run yet. Click Trigger to create the first report.</div>
+        {/if}
       </div>
     </div>
 

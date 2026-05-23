@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 
 class Season(str, Enum):
@@ -18,6 +19,12 @@ class VatCountry(str, Enum):
     FR = "FR"
     BE = "BE"
     DE = "DE"
+
+
+class TriggerReason(str, Enum):
+    MANUAL = "manual"
+    WINE_SOLD = "wine_sold"
+    LOW_STOCK_SCAN = "low_stock_scan"
 
 
 class InventoryItem(BaseModel):
@@ -87,3 +94,21 @@ class MenuAnalysisResult(BaseModel):
     low_stock_warnings: list[str]
     by_the_glass_suggestions: list[str]
     section_counts: dict[str, int]
+
+
+class WineCardTriggerReport(BaseModel):
+    trigger_reason: TriggerReason
+    triggered_at: datetime
+    season: Season
+    vat_country: VatCountry
+    min_stock_threshold: int = Field(ge=1)
+    inventory_items: int = Field(ge=0)
+    low_stock_count: int = Field(ge=0)
+    should_refresh_menu: bool
+    should_consider_purchase: bool
+    low_stock_items: list[str]
+    procurement_suggestions: list[str]
+    sales_boost_suggestions: list[str]
+    wine_fair_watchlist: list[str]
+    menu_export: MenuExportResult | None = None
+    menu_analysis: MenuAnalysisResult | None = None
