@@ -1,32 +1,13 @@
-Table wines {
-  id int
-  producer string
-  name string
-  region string
-  country string
-  appellation string
-  vintage int
-  grape_variety string
-  color string
-  alcohol float
-  drink_from int
-  drink_until int
-  market_price float
-}
+// Chimerai Database Schema
+// Wine cellar management system with AI-powered sommelier assistance
+
+// ============================================================================
+// ENUMS
+// ============================================================================
 
 Enum transactionType {
-  sale
   purchase
-}
-
-Table transactions {
-  id uuid
-  wine_id uuid [ref: > wines.id]
-  user_id uuid [ref: > users.id]
-  quantity int
-  purchase_price float
-  type transactionType
-  date datetime
+  sale
 }
 
 Enum bottleStatus {
@@ -35,31 +16,157 @@ Enum bottleStatus {
   sold
 }
 
-Table cellar {
-  user_id uuid [ref: > users.id]
-  wine_id uuid [ref: > wines.id]
-  transaction_id uuid [ref: > transactions.id]
-  status bottleStatus
-}
-
-Table users {
-  id uuid [pk, default: `uuidv7()`]
-  firstname varchar [not null]
-  lastname varchar [not null]
-}
-
-Enum severities {
+Enum alertSeverity {
   error
   warning
   info
 }
 
+Enum runSessionStatus {
+  running
+  completed
+  failed
+}
+
+Enum userType {
+  business
+  individual
+}
+
+// ============================================================================
+// CORE TABLES
+// ============================================================================
+
+Table users {
+  id uuid [pk, default: `uuidv7()`]
+  firstname varchar [not null]
+  lastname varchar [not null]
+  username varchar [unique, not null]
+  email varchar [unique, not null]
+  user_type userType [not null]
+  business_name varchar
+
+  Note: "Core user entity for the Chimerai system"
+}
+
+Table wines {
+  id int [pk]
+  name varchar [not null]
+  producer varchar [not null]
+  country varchar
+  region varchar
+  appellation varchar
+  vintage varchar
+  grape_variety varchar
+  color varchar [not null]
+  alcohol float [not null]
+  drink_from int
+  drink_to int
+  market_price float
+
+  Note: "Wine catalog with pricing and characteristics"
+}
+
+// ============================================================================
+// INVENTORY & TRANSACTION MANAGEMENT
+// ============================================================================
+
+Table transactions {
+  id uuid [pk, default: `uuidv7()`]
+  wine_id int [ref: > wines.id, not null]
+  user_id uuid [ref: > users.id, not null]
+  quantity int [not null]
+  price float
+  type transactionType [not null]
+  transaction_date datetime [not null, default: `now()`]
+
+  Note: "Records of wine purchases and sales"
+}
+
+Table cellar {
+  id uuid [pk, default: `uuidv7()`]
+  user_id uuid [ref: > users.id, not null]
+  wine_id int [ref: > wines.id, not null]
+  transaction_id uuid [ref: > transactions.id, not null]
+  status bottleStatus [default: 'in_cellar']
+
+  Note: "Individual bottle inventory tracking by status"
+  indexes {
+    (user_id, status)
+  }
+}
+
+// ============================================================================
+// MENU MANAGEMENT
+// ============================================================================
+
+Table menu_items {
+  id uuid [pk, default: `uuidv7()`]
+  user_id uuid [ref: > users.id, not null]
+  wine_id int [ref: > wines.id, not null]
+  description varchar "LLM-generated tasting note"
+  pairing_notes varchar "LLM-generated food pairings"
+  position int [default: 0]
+  is_active bool [default: true]
+  created_at datetime [default: `now()`]
+
+  Note: "Wine menu items with AI-generated sommelier notes"
+  indexes {
+    (user_id, is_active)
+  }
+}
+
+// ============================================================================
+// RECOMMENDATIONS & ALERTS
+// ============================================================================
+
+Table recommendations {
+  id uuid [pk, default: `uuidv7()`]
+  user_id uuid [ref: > users.id, not null]
+  wine_id int [ref: > wines.id, not null]
+  quantity int [not null]
+  market_price float [not null]
+  priority_score float [not null]
+  recommendation_reason varchar [not null]
+  created_at datetime [default: `now()`]
+
+  Note: "AI-generated restocking recommendations"
+  indexes {
+    (user_id, priority_score)
+  }
+}
+
 Table alerts {
   id uuid [pk, default: `uuidv7()`]
-  user_id uuid [ref: > users.id]
-  message string
-  severity severities
-  source_agent string
-  read bool
-  created_at datetime
+  user_id uuid [ref: > users.id, not null]
+  message varchar [not null]
+  severity alertSeverity [default: 'info']
+  source_agent varchar
+  read bool [default: false]
+  created_at datetime [default: `now()`]
+
+  Note: "Alerts from orchestrator and subagents"
+  indexes {
+    (user_id, read)
+  }
+}
+
+// ============================================================================
+// ORCHESTRATOR STATE MANAGEMENT
+// ============================================================================
+
+Table agent_run_sessions {
+  id uuid [pk, default: `uuidv7()`]
+  user_id uuid [ref: > users.id, not null]
+  thread_id varchar [not null, unique: "user_thread_idx"]
+  status runSessionStatus [default: 'running']
+  trigger varchar
+  created_at datetime [default: `now()`]
+  updated_at datetime [default: `now()`]
+
+  Note: "Tracks orchestrator run sessions for checkpoint resumability"
+  indexes {
+    (user_id, status)
+    (user_id, created_at) [name: "user_session_recent_idx"]
+  }
 }
