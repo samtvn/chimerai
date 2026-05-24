@@ -139,22 +139,48 @@
     selectedWine = selectedWine?.id === wine.id ? null : wine;
   }
 
-  const colorEmoji: Record<string, string> = {
-    red: "🔴",
-    white: "⚪",
-    rosé: "🩷",
-    sparkling: "✨",
-    fortified: "🟤",
-    dessert: "🟡",
+  const wineColorLabel: Record<string, string> = {
+    red: "red",
+    white: "white",
+    rosé: "rose",
+    sparkling: "sparkling",
+    fortified: "fortified",
+    dessert: "dessert",
   };
-  const colorDaisy: Record<string, string> = {
-    red: "badge-error",
-    white: "badge-ghost",
-    rosé: "badge-secondary",
-    sparkling: "badge-info",
-    fortified: "badge-warning",
-    dessert: "badge-accent",
+  const wineColorClass: Record<string, string> = {
+    red: "wine-color-red",
+    white: "wine-color-white",
+    rosé: "wine-color-rose",
+    sparkling: "wine-color-sparkling",
+    fortified: "wine-color-fortified",
+    dessert: "wine-color-dessert",
   };
+
+  function getWineColorKey(input: string | null | undefined): string {
+    const key = (input || "").trim().toLowerCase();
+    if (key === "rose" || key === "rosé") return "rosé";
+    return key;
+  }
+
+  function getStockLevel(stock: number): "normal" | "low" | "critical" {
+    if (stock <= 1) return "critical";
+    if (stock <= 2) return "low";
+    return "normal";
+  }
+
+  function stockBadgeClass(stock: number): string {
+    const level = getStockLevel(stock);
+    if (level === "critical") return "stock-badge-critical";
+    if (level === "low") return "stock-badge-low";
+    return "stock-badge-normal";
+  }
+
+  function stockTextClass(stock: number): string {
+    const level = getStockLevel(stock);
+    if (level === "critical") return "stock-text-critical font-bold";
+    if (level === "low") return "stock-text-low font-semibold";
+    return "";
+  }
 
   const filteredWines = $derived.by(() => {
     if (!searchQuery && !filterColor && !filterRegion && !filterAppellation)
@@ -346,10 +372,11 @@
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {#each filteredWines as wine (wine.id)}
             {@const isSelected = selectedWine?.id === wine.id}
+            {@const colorKey = getWineColorKey(wine.color)}
             <button
-              class="card bg-base-100 border {isSelected
-                ? 'border-primary shadow-lg'
-                : 'border-primary-content hover:border-primary/50'} transition-all text-left cursor-pointer"
+              class="card bg-base-100 border wine-card {isSelected
+                ? 'wine-card-selected shadow-md'
+                : ''} transition-all text-left cursor-pointer"
               onclick={() => selectWine(wine)}
             >
               <div class="card-body p-4">
@@ -361,11 +388,11 @@
                     </p>
                   </div>
                   <span
-                    class="badge {colorDaisy[wine.color] ||
-                      'badge-ghost'} badge-xs shrink-0"
+                    class="badge badge-xs shrink-0 wine-badge {wineColorClass[
+                      colorKey
+                    ] || 'wine-color-default'}"
                   >
-                    {colorEmoji[wine.color] || wine.color}
-                    {wine.color}
+                    {wineColorLabel[colorKey] || wine.color}
                   </span>
                 </div>
                 <div class="flex items-center justify-between mt-2">
@@ -373,9 +400,9 @@
                     >{wine.region}, {wine.country}</span
                   >
                   <span
-                    class="badge badge-sm {wine.stock <= 2
-                      ? 'badge-error'
-                      : 'badge-ghost'}"
+                    class="badge badge-sm stock-badge {stockBadgeClass(
+                      wine.stock,
+                    )}"
                   >
                     {wine.stock}
                     {wine.stock === 1 ? "btl" : "btls"}
@@ -404,7 +431,7 @@
     <!-- Detail Panel -->
     {#if selectedWine}
       <div class="lg:col-span-1">
-        <div class="card bg-base-100 border border-primary sticky top-20">
+        <div class="card bg-base-100 border border-primary-content sticky top-20">
           <div class="card-body p-4">
             <div class="flex items-start justify-between">
               <h3 class="font-bold text-lg">{selectedWine.name}</h3>
@@ -440,9 +467,7 @@
               </div>
               <div>
                 <span class="text-base-content/40 text-xs">Stock</span>
-                <p
-                  class={selectedWine.stock <= 2 ? "text-error font-bold" : ""}
-                >
+                <p class={stockTextClass(selectedWine.stock)}>
                   {selectedWine.stock} bottle{selectedWine.stock !== 1
                     ? "s"
                     : ""}
@@ -605,3 +630,117 @@
     ></div>
   </div>
 {/if}
+
+<style>
+  .wine-card {
+    border-color: hsl(var(--bc) / 0.12);
+  }
+
+  .wine-card:hover {
+    border-color: hsl(var(--bc) / 0.28);
+  }
+
+  .wine-card-selected {
+    border-color: #7a3342;
+    box-shadow: 0 0 0 1px rgb(122 51 66 / 0.2);
+  }
+
+  .wine-badge {
+    border-width: 1px;
+    border-style: solid;
+    font-weight: 600;
+    text-transform: lowercase;
+    letter-spacing: 0.01em;
+  }
+
+  .wine-color-default {
+    background: #f1f1f1;
+    color: #4a4a4a;
+    border-color: #d4d4d4;
+  }
+
+  .wine-color-red {
+    background: #f6e7ea;
+    color: #5f1622;
+    border-color: #ca8f9b;
+  }
+
+  .wine-color-white {
+    background: #edf8ee;
+    color: #3f6d46;
+    border-color: #bdd9c1;
+  }
+
+  .wine-color-sparkling {
+    background: #fff5dc;
+    color: #8a6b1f;
+    border-color: #e4ce93;
+    box-shadow: inset 0 0 0 1px rgb(255 236 179 / 0.85),
+      0 0 0 1px rgb(214 186 112 / 0.35);
+  }
+
+  .wine-color-fortified,
+  .wine-color-dessert {
+    background: #f9eee6;
+    color: #97572a;
+    border-color: #e0b894;
+  }
+
+  .wine-color-rose {
+    background: #fdebf3;
+    color: #b03e6f;
+    border-color: #e5abc4;
+  }
+
+  .stock-badge {
+    border-width: 1px;
+    border-style: solid;
+    font-weight: 600;
+  }
+
+  .stock-badge-normal {
+    background: #f2f4f7;
+    color: #4b5563;
+    border-color: #d2d7df;
+  }
+
+  .stock-badge-low {
+    background: #feecef;
+    color: #b4233d;
+    border-color: #f3a6b4;
+  }
+
+  .stock-badge-critical {
+    background: #ffe4e8;
+    color: #981b32;
+    border-color: #ea7d94;
+    animation: stock-critical-pulse 1.9s ease-in-out infinite;
+    will-change: box-shadow, transform;
+  }
+
+  .stock-text-low {
+    color: #b4233d;
+  }
+
+  .stock-text-critical {
+    color: #981b32;
+  }
+
+  @keyframes stock-critical-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgb(234 125 148 / 0);
+      transform: translateZ(0) scale(1);
+    }
+    50% {
+      box-shadow: 0 0 0 3px rgb(234 125 148 / 0.26);
+      transform: translateZ(0) scale(1.02);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stock-badge-critical {
+      animation: none;
+    }
+  }
+</style>
