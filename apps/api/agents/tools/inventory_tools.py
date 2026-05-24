@@ -1,8 +1,9 @@
+from langchain_core.tools import tool
+from sqlalchemy import func, select
+
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.models.cellar import BottleStatus, Cellar
 from apps.api.database.models.wines import Wine
-from langchain_core.tools import tool
-from sqlalchemy import func, select
 
 
 def make_inventory_tools(user_id: str) -> list:
@@ -101,4 +102,95 @@ def make_inventory_tools(user_id: str) -> list:
             lines.append(f"  {r.name} ({r.region}, {r.color}) — {r.bottle_count} bottle(s)")
         return "\n".join(lines)
 
-    return [get_cellar_summary, flag_low_stock]
+    @tool
+    async def get_cellar_analysis() -> str:
+        """
+        Returns a deep diversity and balance analysis of the wine cellar.
+        Includes diversity score (excellent/good/moderate/limited), counts by country/region/color/grape variety,
+        and identifies any dimensions with zero representation (gaps).
+        Use this to understand cellar balance and identify weak spots.
+        """
+        async with AsyncSessionLocal() as db:
+            # Get all wines in cellar
+            result = await db.execute(
+                select(
+                    Wine.country,
+                    Wine.region,
+                    Wine.color,
+                    Wine.grape_variety,
+                    func.count(Cellar.id).label("bottle_count"),
+                )
+                .join(Cellar, Cellar.wine_id == Wine.id)
+                .where(
+                    Cellar.user_id == user_id,
+                    Cellar.status == BottleStatus.IN_CELLAR,
+                )
+                .group_by(Wine.id, Wine.country, Wine.region, Wine.color, Wine.grape_variety)
+            )
+            rows = result.all()
+
+        if not rows:
+            return "The cellar is empty. No diversity to analyze."
+
+        # Extract unique dimensions
+        countries = set()
+        regions = set()
+        colors = set()
+        varieties = set()
+        total_bottles = 0
+
+        for row in rows:
+            if row.country:
+                countries.add(row.country)
+            if row.region:
+                regions.add(row.region)
+            if row.color:
+                colors.add(row.color)
+            if row.grape_variety:
+                varieties.add(row.grape_variety)
+            total_bottles += row.bottle_count
+
+        # Calculate diversity score (weighted formula)
+        diversity_score = (
+            len(countries) * 0.35
+            + len(varieties) * 0.35
+            + len(colors) * 0.1
+            + min(total_bottles / 50, 10) * 0.2
+        )
+
+        if diversity_score >= 7:
+            diversity_level = "excellent"
+        elif diversity_score >= 5:
+            diversity_level = "good"
+        elif diversity_score >= 3:
+            diversity_level = "moderate"
+        else:
+            diversity_level = "limited"
+
+        # Build output
+        lines = [
+            "Cellar Diversity Analysis",
+            "========================",
+            f"Total bottles: {total_bottles}",
+            f"Diversity level: {diversity_level} (score: {diversity_score:.1f}/10)",
+            "",
+            f"Unique countries: {len(countries)}",
+            f"Unique regions: {len(regions)}",
+            f"Unique colors: {len(colors)}",
+            f"Unique grape varieties: {len(varieties)}",
+            "",
+        ]
+
+        # Expected categories (basic wine colors)
+        expected_colors = {"red", "white", "rosé", "sparkling", "dessert", "fortified"}
+        color_set_lower = {c.lower() if c else "" for c in colors}
+        missing_colors = expected_colors - color_set_lower
+
+        if missing_colors:
+            lines.append(f"Missing color categories: {', '.join(sorted(missing_colors))}")
+        else:
+            lines.append("✓ All major color categories represented")
+
+        return "\n".join(lines)
+
+    return [get_cellar_summary, flag_low_stock, get_cellar_analysis]

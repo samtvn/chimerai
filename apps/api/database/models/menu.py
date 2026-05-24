@@ -19,6 +19,8 @@ class MenuItem(SQLModel, table=True):
     pairing_notes: str = ""  # LLM-generated food pairings
     position: int = 0  # order on the card
     is_active: bool = True  # shown on current menu?
+    selling_price_ttc: float | None = None  # computed restaurant price TTC
+    glass_price_ttc: float | None = None  # computed per-glass price TTC
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     user: "User" = Relationship(back_populates="menu_items")
