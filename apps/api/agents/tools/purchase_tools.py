@@ -1,12 +1,18 @@
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
+from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.models.wines import Wine
 
 
-def make_purchase_tools(db: AsyncSession, llm) -> list:
+class DistributorPricing(BaseModel):
+    """Structured output for distributor pricing analysis."""
+    recommendation: str  # The distributor recommendation with pricing and reasoning
+
+
+def make_purchase_tools(llm) -> list:
 
     @tool
     async def find_best_price(wine_name: str) -> str:
@@ -17,15 +23,16 @@ def make_purchase_tools(db: AsyncSession, llm) -> list:
         and compare distributor prices before making a purchase recommendation.
         """
 
-        # 1. Look up the wine in the database to get baseline info
-        result = await db.execute(
-            select(
-                Wine.name, Wine.market_price, Wine.region, Wine.vintage, Wine.color, Wine.producer
+        async with AsyncSessionLocal() as db:
+            # 1. Look up the wine in the database to get baseline info
+            result = await db.execute(
+                select(
+                    Wine.name, Wine.market_price, Wine.region, Wine.vintage, Wine.color, Wine.producer
+                )
+                .where(Wine.name.ilike(f"%{wine_name}%"))
+                .limit(1)
             )
-            .where(Wine.name.ilike(f"%{wine_name}%"))
-            .limit(1)
-        )
-        wine = result.first()
+            wine = result.first()
 
         if not wine:
             return f"No wine matching '{wine_name}' found in the database."
@@ -40,11 +47,7 @@ def make_purchase_tools(db: AsyncSession, llm) -> list:
             f"Current market price (reference): €{wine.market_price}"
         )
 
-        # 3. Ask the LLM to roleplay as a distributor aggregator
-        # This is how you call an LLM in LangChain:
-        # - You build a list of messages (HumanMessage, SystemMessage, etc.)
-        # - You call llm.ainvoke(messages) — the `a` prefix means async
-        # - The response is an AIMessage object; .content gives you the string
+        # 3. Ask the LLM to roleplay as a distributor aggregator with structured output
         prompt = f"""You are a wine distributor aggregator with access to three distributors: 
 Vinissimo, WineDirect, and GlobalWine.
 
@@ -58,8 +61,9 @@ For each distributor provide: price per bottle, minimum order quantity, and deli
 Then clearly state which distributor offers the best deal and why.
 Keep the response concise and practical."""
 
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        structured_llm = llm.with_structured_output(DistributorPricing)
+        response = await structured_llm.ainvoke([HumanMessage(content=prompt)])
 
-        return response.content
+        return response.recommendation
 
     return [find_best_price]

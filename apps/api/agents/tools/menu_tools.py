@@ -1,16 +1,25 @@
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
+from pydantic import BaseModel
 from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.models.menu import MenuItem
 from apps.api.database.models.wines import Wine
 
 
-def make_menu_tools(db: AsyncSession, user_id: str, llm) -> list:
+class WineDescription(BaseModel):
+    """Structured output for wine description generation."""
+    tasting_note: str
+    pairings: str
+
+
+def make_menu_tools(user_id: str, llm) -> list:
     """
     Create menu management tools for the orchestrator.
     These tools manage the wine menu by adding/removing wines and generating descriptions.
+    
+    Each tool opens its own AsyncSession to avoid session contention during concurrent calls.
     """
 
     @tool
@@ -20,27 +29,28 @@ def make_menu_tools(db: AsyncSession, user_id: str, llm) -> list:
         Returns all wines that are marked as active, sorted by position on the card.
         Use this to see what wines are currently on the menu.
         """
-        result = await db.execute(
-            select(
-                Wine.name,
-                Wine.region,
-                Wine.color,
-                Wine.producer,
-                Wine.vintage,
-                MenuItem.description,
-                MenuItem.pairing_notes,
-                MenuItem.position,
-            )
-            .join(MenuItem, MenuItem.wine_id == Wine.id)
-            .where(
-                and_(
-                    MenuItem.user_id == user_id,
-                    MenuItem.is_active,
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(
+                    Wine.name,
+                    Wine.region,
+                    Wine.color,
+                    Wine.producer,
+                    Wine.vintage,
+                    MenuItem.description,
+                    MenuItem.pairing_notes,
+                    MenuItem.position,
                 )
+                .join(MenuItem, MenuItem.wine_id == Wine.id)
+                .where(
+                    and_(
+                        MenuItem.user_id == user_id,
+                        MenuItem.is_active,
+                    )
+                )
+                .order_by(MenuItem.position)
             )
-            .order_by(MenuItem.position)
-        )
-        rows = result.all()
+            rows = result.all()
 
         if not rows:
             return "The menu is currently empty. No active wines on the menu."
@@ -66,58 +76,59 @@ def make_menu_tools(db: AsyncSession, user_id: str, llm) -> list:
         If description is empty, generates one using LLM.
         Use this when restocking a wine and you want to add it to the menu.
         """
-        # Find the wine
-        wine_result = await db.execute(
-            select(Wine).where(Wine.name.ilike(f"%{wine_name}%")).limit(1)
-        )
-        wine = wine_result.scalars().first()
+        async with AsyncSessionLocal() as db:
+            # Find the wine
+            wine_result = await db.execute(
+                select(Wine).where(Wine.name.ilike(f"%{wine_name}%")).limit(1)
+            )
+            wine = wine_result.scalars().first()
 
-        if not wine:
-            return f"Wine '{wine_name}' not found in the database."
+            if not wine:
+                return f"Wine '{wine_name}' not found in the database."
 
-        # Check if already on menu
-        existing_result = await db.execute(
-            select(MenuItem).where(
-                and_(
-                    MenuItem.user_id == user_id,
-                    MenuItem.wine_id == wine.id,
+            # Check if already on menu
+            existing_result = await db.execute(
+                select(MenuItem).where(
+                    and_(
+                        MenuItem.user_id == user_id,
+                        MenuItem.wine_id == wine.id,
+                    )
                 )
             )
-        )
-        existing = existing_result.scalars().first()
+            existing = existing_result.scalars().first()
 
-        if existing:
-            # Update existing menu item to active
-            existing.is_active = True
-            db.add(existing)
-            await db.commit()
-            return f"{wine.name} is now active on the menu."
+            if existing:
+                # Update existing menu item to active
+                existing.is_active = True
+                db.add(existing)
+                await db.commit()
+                return f"{wine.name} is now active on the menu."
 
-        # Generate description if needed
-        description = await _generate_description_internal(wine)
+            # Generate description if needed
+            description = await _generate_description_internal(wine)
 
-        # Create new menu item
-        # Get max position
-        max_pos_result = await db.execute(
-            select(func.max(MenuItem.position)).where(
-                MenuItem.user_id == user_id,
-                MenuItem.is_active,
+            # Create new menu item
+            # Get max position
+            max_pos_result = await db.execute(
+                select(func.max(MenuItem.position)).where(
+                    MenuItem.user_id == user_id,
+                    MenuItem.is_active,
+                )
             )
-        )
-        max_position = (max_pos_result.scalar() or 0) + 1
+            max_position = (max_pos_result.scalar() or 0) + 1
 
-        new_item = MenuItem(
-            user_id=user_id,
-            wine_id=wine.id,
-            description=description["tasting_note"],
-            pairing_notes=description["pairings"],
-            position=max_position,
-            is_active=True,
-        )
-        db.add(new_item)
-        await db.commit()
+            new_item = MenuItem(
+                user_id=user_id,
+                wine_id=wine.id,
+                description=description["tasting_note"],
+                pairing_notes=description["pairings"],
+                position=max_position,
+                is_active=True,
+            )
+            db.add(new_item)
+            await db.commit()
 
-        return f"{wine.name} has been added to the menu at position {max_position}."
+            return f"{wine.name} has been added to the menu at position {max_position}."
 
     @tool
     async def remove_wine_from_menu(wine_name: str) -> str:
@@ -126,37 +137,38 @@ def make_menu_tools(db: AsyncSession, user_id: str, llm) -> list:
         Provide the wine_name parameter.
         Use this when a wine runs out of stock or should no longer be offered.
         """
-        # Find the wine
-        wine_result = await db.execute(
-            select(Wine).where(Wine.name.ilike(f"%{wine_name}%")).limit(1)
-        )
-        wine = wine_result.scalars().first()
+        async with AsyncSessionLocal() as db:
+            # Find the wine
+            wine_result = await db.execute(
+                select(Wine).where(Wine.name.ilike(f"%{wine_name}%")).limit(1)
+            )
+            wine = wine_result.scalars().first()
 
-        if not wine:
-            return f"Wine '{wine_name}' not found in the database."
+            if not wine:
+                return f"Wine '{wine_name}' not found in the database."
 
-        # Find menu item
-        item_result = await db.execute(
-            select(MenuItem).where(
-                and_(
-                    MenuItem.user_id == user_id,
-                    MenuItem.wine_id == wine.id,
+            # Find menu item
+            item_result = await db.execute(
+                select(MenuItem).where(
+                    and_(
+                        MenuItem.user_id == user_id,
+                        MenuItem.wine_id == wine.id,
+                    )
                 )
             )
-        )
-        item = item_result.scalars().first()
+            item = item_result.scalars().first()
 
-        if not item:
-            return f"{wine.name} is not currently on the menu."
+            if not item:
+                return f"{wine.name} is not currently on the menu."
 
-        if not item.is_active:
-            return f"{wine.name} is already inactive on the menu."
+            if not item.is_active:
+                return f"{wine.name} is already inactive on the menu."
 
-        item.is_active = False
-        db.add(item)
-        await db.commit()
+            item.is_active = False
+            db.add(item)
+            await db.commit()
 
-        return f"{wine.name} has been removed from the menu."
+            return f"{wine.name} has been removed from the menu."
 
     @tool
     async def generate_wine_description(wine_name: str) -> str:
@@ -166,18 +178,19 @@ def make_menu_tools(db: AsyncSession, user_id: str, llm) -> list:
         Uses LLM to create compelling descriptions.
         Returns the generated tasting note and pairing suggestions.
         """
-        # Find the wine
-        wine_result = await db.execute(
-            select(Wine).where(Wine.name.ilike(f"%{wine_name}%")).limit(1)
-        )
-        wine = wine_result.scalars().first()
+        async with AsyncSessionLocal() as db:
+            # Find the wine
+            wine_result = await db.execute(
+                select(Wine).where(Wine.name.ilike(f"%{wine_name}%")).limit(1)
+            )
+            wine = wine_result.scalars().first()
 
-        if not wine:
-            return f"Wine '{wine_name}' not found in the database."
+            if not wine:
+                return f"Wine '{wine_name}' not found in the database."
 
-        description = await _generate_description_internal(wine)
+            description = await _generate_description_internal(wine)
 
-        return f"""Tasting Note:
+            return f"""Tasting Note:
 {description["tasting_note"]}
 
 Food Pairings:
@@ -186,6 +199,7 @@ Food Pairings:
     async def _generate_description_internal(wine: Wine) -> dict:
         """
         Internal helper to generate tasting note and pairings via LLM.
+        Uses structured output to ensure reliable parsing.
         Returns dict with 'tasting_note' and 'pairings' keys.
         """
         prompt = f"""You are a professional sommelier. Generate a compelling and concise wine menu description.
@@ -202,27 +216,13 @@ Wine Details:
 
 Generate:
 1. A 2-3 sentence tasting note (aroma, flavor profile, structure)
-2. Three food pairings as a comma-separated list
+2. Three food pairings as a comma-separated list"""
 
-Format your response as:
-TASTING NOTE: [your tasting note]
-PAIRINGS: [food1, food2, food3]"""
+        # Use structured output to get typed response
+        structured_llm = llm.with_structured_output(WineDescription)
+        response = await structured_llm.ainvoke([HumanMessage(content=prompt)])
 
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
-        content = response.content
-
-        # Parse response
-        tasting_note = ""
-        pairings = ""
-
-        lines = content.split("\n")
-        for line in lines:
-            if line.startswith("TASTING NOTE:"):
-                tasting_note = line.replace("TASTING NOTE:", "").strip()
-            elif line.startswith("PAIRINGS:"):
-                pairings = line.replace("PAIRINGS:", "").strip()
-
-        return {"tasting_note": tasting_note, "pairings": pairings}
+        return {"tasting_note": response.tasting_note, "pairings": response.pairings}
 
     return [
         get_current_menu,

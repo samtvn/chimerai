@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Brain, Play, Eye, BadgeCheck, Bell, Bot } from "@lucide/svelte";
+  import { Brain, Play, Eye, BadgeCheck, Bell, Bot, RefreshCw } from "@lucide/svelte";
   import agentStore from "$lib/stores/agent.svelte";
 
   let autoScroll = $state(true);
@@ -43,6 +43,8 @@
     }
   });
 
+  let hasFailure = $derived(agentStore.events.some((e) => e.type === "alert"));
+
   function formatTime(ts: string) {
     try {
       return new Date(ts).toLocaleTimeString("en-GB", {
@@ -78,6 +80,15 @@
         >
           <Play size="12" /> Run
         </button>
+        {#if hasFailure}
+          <button
+            class="btn btn-ghost btn-xs text-warning"
+            onclick={() => agentStore.trigger("manual")}
+            title="Resume from last checkpoint"
+          >
+            <RefreshCw size="12" /> Resume
+          </button>
+        {/if}
         <button
           class="btn btn-ghost btn-xs"
           onclick={() => agentStore.clear()}

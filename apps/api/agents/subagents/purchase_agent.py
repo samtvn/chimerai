@@ -6,7 +6,6 @@ Focused on distributor pricing: finds the best price and restocking options for 
 
 from langchain.agents import create_agent
 from langchain_core.tools import tool
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.agents.subagents.utils import run_subagent
 from apps.api.agents.tools.purchase_tools import make_purchase_tools
@@ -25,8 +24,8 @@ Return a clear recommendation: which distributor to use, the price per bottle, a
 """
 
 
-def create_purchase_agent(db: AsyncSession, user_id: str):
-    tools = make_purchase_tools(db, llm=gemini_flash_3_1_lite)
+def create_purchase_agent(user_id: str):
+    tools = make_purchase_tools(llm=gemini_flash_3_1_lite)
     return create_agent(
         model=gemini_flash_3_1_lite,
         tools=tools,
@@ -34,7 +33,7 @@ def create_purchase_agent(db: AsyncSession, user_id: str):
     )
 
 
-def make_purchase_agent_tool(db: AsyncSession, user_id: str):
+def make_purchase_agent_tool(user_id: str):
     @tool
     async def run_purchase_agent(query: str) -> str:
         """
@@ -43,7 +42,7 @@ def make_purchase_agent_tool(db: AsyncSession, user_id: str):
         Provide the wine name in the query.
         Only call this after confirming via sales analysis that the wine is worth restocking.
         """
-        agent = create_purchase_agent(db, user_id)
+        agent = create_purchase_agent(user_id)
         return await run_subagent(
             agent=agent,
             query=query,

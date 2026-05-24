@@ -1,11 +1,11 @@
+from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.models.cellar import BottleStatus, Cellar
 from apps.api.database.models.wines import Wine
 from langchain_core.tools import tool
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def make_inventory_tools(db: AsyncSession, user_id: str) -> list:
+def make_inventory_tools(user_id: str) -> list:
     @tool
     async def get_cellar_summary() -> str:
         """
@@ -14,22 +14,22 @@ def make_inventory_tools(db: AsyncSession, user_id: str) -> list:
         and wines currently at zero or critical stock (1-2 bottles).
         Always call this first to understand the state of the cellar.
         """
-
-        result = await db.execute(
-            select(
-                Wine.name,
-                Wine.region,
-                Wine.color,
-                func.count(Cellar.id).label("bottle_count"),
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(
+                    Wine.name,
+                    Wine.region,
+                    Wine.color,
+                    func.count(Cellar.id).label("bottle_count"),
+                )
+                .join(Cellar, Cellar.wine_id == Wine.id)
+                .where(
+                    Cellar.user_id == user_id,
+                    Cellar.status == BottleStatus.IN_CELLAR,
+                )
+                .group_by(Wine.id, Wine.name, Wine.region, Wine.color)
             )
-            .join(Cellar, Cellar.wine_id == Wine.id)
-            .where(
-                Cellar.user_id == user_id,
-                Cellar.status == BottleStatus.IN_CELLAR,
-            )
-            .group_by(Wine.id, Wine.name, Wine.region, Wine.color)
-        )
-        rows = result.all()
+            rows = result.all()
 
         if not rows:
             return "The cellar is currently empty."
@@ -75,23 +75,23 @@ def make_inventory_tools(db: AsyncSession, user_id: str) -> list:
         Returns wines that are low in stock (2 bottles or fewer).
         Use this when you want to decide if restocking is needed.
         """
-
-        result = await db.execute(
-            select(
-                Wine.name,
-                Wine.region,
-                Wine.color,
-                func.count(Cellar.id).label("bottle_count"),
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(
+                    Wine.name,
+                    Wine.region,
+                    Wine.color,
+                    func.count(Cellar.id).label("bottle_count"),
+                )
+                .join(Cellar, Cellar.wine_id == Wine.id)
+                .where(
+                    Cellar.user_id == user_id,
+                    Cellar.status == BottleStatus.IN_CELLAR,
+                )
+                .group_by(Wine.id, Wine.name, Wine.region, Wine.color)
+                .having(func.count(Cellar.id) <= 2)
             )
-            .join(Cellar, Cellar.wine_id == Wine.id)
-            .where(
-                Cellar.user_id == user_id,
-                Cellar.status == BottleStatus.IN_CELLAR,
-            )
-            .group_by(Wine.id, Wine.name, Wine.region, Wine.color)
-            .having(func.count(Cellar.id) <= 2)
-        )
-        rows = result.all()
+            rows = result.all()
 
         if not rows:
             return "No wines are currently low in stock."

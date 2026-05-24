@@ -6,7 +6,6 @@ Focused on sales performance: history per wine, top sellers.
 
 from langchain.agents import create_agent
 from langchain_core.tools import tool
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.agents.subagents.utils import run_subagent
 from apps.api.agents.tools.sales_tools import make_sales_tools
@@ -25,8 +24,8 @@ Return a clear verdict: which wines sell well, which are slow movers, and why.
 """
 
 
-def create_sales_analysis_agent(db: AsyncSession, user_id: str):
-    tools = make_sales_tools(db, user_id)
+def create_sales_analysis_agent(user_id: str):
+    tools = make_sales_tools(user_id)
     return create_agent(
         model=gemini_flash_3_1_lite,
         tools=tools,
@@ -34,7 +33,7 @@ def create_sales_analysis_agent(db: AsyncSession, user_id: str):
     )
 
 
-def make_sales_analysis_tool(db: AsyncSession, user_id: str):
+def make_sales_analysis_tool(user_id: str):
     @tool
     async def run_sales_analysis(query: str) -> str:
         """
@@ -42,7 +41,7 @@ def make_sales_analysis_tool(db: AsyncSession, user_id: str):
         Use this to check how well a wine sells, view top-selling wines,
         or determine if a low-stock wine is worth restocking based on sales data.
         """
-        agent = create_sales_analysis_agent(db, user_id)
+        agent = create_sales_analysis_agent(user_id)
         return await run_subagent(
             agent=agent,
             query=query,

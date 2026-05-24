@@ -243,9 +243,9 @@ export const api = {
 
   agent: {
     trigger: (trigger = "manual", data?: Record<string, unknown>) =>
-      fetchApi<{ status: string; trigger: string }>("/agent/trigger", {
+      fetchApi<{ status: string; trigger: string }>("/agents/run", {
         method: "POST",
-        body: JSON.stringify({ trigger, data }),
+        body: JSON.stringify({ trigger }),
       }),
     status: () => fetchApi<{ status: string; subscriber_count: number; recent_events: number }>("/agent/status"),
   },

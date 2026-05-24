@@ -5,13 +5,11 @@ Focused on menu management: viewing the current menu, adding/removing wines,
 and generating sommelier-quality tasting notes.
 """
 
-from langchain.agents import create_agent
-from langchain_core.tools import tool
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from apps.api.agents.subagents.utils import run_subagent
 from apps.api.agents.tools.menu_tools import make_menu_tools
 from apps.api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
+from langchain.agents import create_agent
+from langchain_core.tools import tool
 
 MENU_GENERATOR_SYSTEM_PROMPT = """You are the Menu Generator agent for Chimerai, a restaurant sommelier system.
 
@@ -30,8 +28,8 @@ Return a clear summary of what menu changes were made.
 """
 
 
-def create_menu_generator_agent(db: AsyncSession, user_id: str):
-    tools = make_menu_tools(db, user_id, llm=gemini_flash_3_1_lite)
+def create_menu_generator_agent(user_id: str):
+    tools = make_menu_tools(user_id, llm=gemini_flash_3_1_lite)
     return create_agent(
         model=gemini_flash_3_1_lite,
         tools=tools,
@@ -39,7 +37,7 @@ def create_menu_generator_agent(db: AsyncSession, user_id: str):
     )
 
 
-def make_menu_generator_tool(db: AsyncSession, user_id: str):
+def make_menu_generator_tool(user_id: str):
     @tool
     async def run_menu_generator(query: str) -> str:
         """
@@ -48,7 +46,7 @@ def make_menu_generator_tool(db: AsyncSession, user_id: str):
         or generate fresh tasting notes and food pairing suggestions.
         Call this after purchase_agent confirms a restock — to add the wine to the menu.
         """
-        agent = create_menu_generator_agent(db, user_id)
+        agent = create_menu_generator_agent(user_id)
         return await run_subagent(
             agent=agent,
             query=query,
