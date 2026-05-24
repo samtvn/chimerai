@@ -270,9 +270,25 @@ export const api = {
       fetchApi<WineCardMenuExportResult>(
         `/wine-card/menu/export?season=${season}&vat_country=${vat_country}`
       ),
+    exportSeedEditableMenu: (
+      season: WineCardSeason,
+      vat_country: VatCountry = "LU",
+      default_quantity = 6,
+    ) =>
+      fetchApi<WineCardMenuExportResult>(
+        `/wine-card/menu/export/seeds?season=${season}&vat_country=${vat_country}&default_quantity=${default_quantity}`
+      ),
     analyzeMenu: (season: WineCardSeason, vat_country: VatCountry = "LU") =>
       fetchApi<WineCardMenuAnalysis>(
         `/wine-card/menu/analysis?season=${season}&vat_country=${vat_country}`
+      ),
+    analyzeSeedMenu: (
+      season: WineCardSeason,
+      vat_country: VatCountry = "LU",
+      default_quantity = 6,
+    ) =>
+      fetchApi<WineCardMenuAnalysis>(
+        `/wine-card/menu/analysis/seeds?season=${season}&vat_country=${vat_country}&default_quantity=${default_quantity}`
       ),
     runTrigger: (
       reason: WineCardTriggerReason = "manual",

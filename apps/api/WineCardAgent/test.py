@@ -125,6 +125,25 @@ async def test_service_export_and_analysis_offline():
     assert len(analysis.by_the_glass_suggestions) <= 6
 
 
+async def test_seed_catalog_export_offline():
+    service = WineCardService()
+    menu = await service.export_editable_menu_from_seeds(
+        season=Season.WINTER,
+        vat_country=VatCountry.LU,
+        default_quantity=6,
+    )
+    assert menu.items_count > 0
+    assert "Editable Wine List" in menu.markdown
+
+    analysis = await service.analyze_seed_catalog(
+        season=Season.WINTER,
+        vat_country=VatCountry.LU,
+        default_quantity=6,
+    )
+    assert isinstance(analysis.section_counts, dict)
+    assert len(analysis.section_counts) > 0
+
+
 async def test_database_smoke_optional():
     """Optional DB smoke test. Enable with RUN_WINECARD_DB_TEST=1."""
     if os.getenv("RUN_WINECARD_DB_TEST") != "1":
@@ -166,6 +185,7 @@ async def main():
 
     async_tests = [
         ("Offline Service Export + Analysis", test_service_export_and_analysis_offline),
+        ("Seed Catalog Export + Analysis (Offline)", test_seed_catalog_export_offline),
         ("Database Smoke (Optional)", test_database_smoke_optional),
     ]
     for name, fn in async_tests:

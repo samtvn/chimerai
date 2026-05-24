@@ -16,6 +16,7 @@ from .models import (
 )
 from .pricing import calculate_restaurant_price_ttc
 from .repository import WineCardRepository
+from .seed_catalog import load_seed_inventory
 
 
 SECTION_ORDER = ["sparkling", "white", "rose", "red", "dessert", "fortified"]
@@ -54,10 +55,12 @@ SEASONAL_STRATEGIES = {
 
 
 class WineCardService:
-    def __init__(self, repository: WineCardRepository):
+    def __init__(self, repository: WineCardRepository | None = None):
         self.repository = repository
 
     async def read_inventory(self, user_id: UUID) -> list[InventoryItem]:
+        if self.repository is None:
+            raise ValueError("WineCardRepository is required for DB inventory operations.")
         return await self.repository.read_inventory(user_id=user_id)
 
     async def export_editable_menu(
@@ -67,6 +70,57 @@ class WineCardService:
         vat_country: VatCountry = VatCountry.LU,
     ) -> MenuExportResult:
         inventory = await self.read_inventory(user_id=user_id)
+        return self._build_menu_export_from_inventory(
+            inventory=inventory,
+            season=season,
+            vat_country=vat_country,
+        )
+
+    async def export_editable_menu_from_seeds(
+        self,
+        season: Season,
+        vat_country: VatCountry = VatCountry.LU,
+        default_quantity: int = 6,
+    ) -> MenuExportResult:
+        inventory = load_seed_inventory(default_quantity=default_quantity)
+        return self._build_menu_export_from_inventory(
+            inventory=inventory,
+            season=season,
+            vat_country=vat_country,
+        )
+
+    async def analyze_menu(
+        self,
+        user_id: UUID,
+        season: Season,
+        vat_country: VatCountry = VatCountry.LU,
+    ) -> MenuAnalysisResult:
+        inventory = await self.read_inventory(user_id=user_id)
+        return self._build_menu_analysis_from_inventory(
+            inventory=inventory,
+            season=season,
+            vat_country=vat_country,
+        )
+
+    async def analyze_seed_catalog(
+        self,
+        season: Season,
+        vat_country: VatCountry = VatCountry.LU,
+        default_quantity: int = 6,
+    ) -> MenuAnalysisResult:
+        inventory = load_seed_inventory(default_quantity=default_quantity)
+        return self._build_menu_analysis_from_inventory(
+            inventory=inventory,
+            season=season,
+            vat_country=vat_country,
+        )
+
+    def _build_menu_export_from_inventory(
+        self,
+        inventory: list[InventoryItem],
+        season: Season,
+        vat_country: VatCountry,
+    ) -> MenuExportResult:
         menu_items: list[MenuItem] = []
 
         for item in inventory:
@@ -106,13 +160,12 @@ class WineCardService:
             menu_items=menu_items,
         )
 
-    async def analyze_menu(
+    def _build_menu_analysis_from_inventory(
         self,
-        user_id: UUID,
+        inventory: list[InventoryItem],
         season: Season,
-        vat_country: VatCountry = VatCountry.LU,
+        vat_country: VatCountry,
     ) -> MenuAnalysisResult:
-        inventory = await self.read_inventory(user_id=user_id)
         strategy = SEASONAL_STRATEGIES[season]
 
         section_counts = Counter(self._map_section(item.wine_color) for item in inventory)

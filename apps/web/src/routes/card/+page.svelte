@@ -17,21 +17,49 @@
   let triggerReport = $state<WineCardTriggerReport | null>(null);
   let triggerRunning = $state(false);
   let minStockThreshold = $state(2);
+  let seedDemoMode = $state(true);
+  let seedDefaultQuantity = $state(6);
 
   async function loadWineCardData() {
     loading = true;
     error = "";
     try {
-      const [inv, menu, report] = await Promise.all([
-        api.wineCard.inventory(),
-        api.wineCard.exportEditableMenu(season, vatCountry),
-        api.wineCard.analyzeMenu(season, vatCountry),
-      ]);
-      inventory = inv.items;
-      exportedMenu = menu;
-      analysis = report;
+      if (seedDemoMode) {
+        const [menu, report] = await Promise.all([
+          api.wineCard.exportSeedEditableMenu(season, vatCountry, seedDefaultQuantity),
+          api.wineCard.analyzeSeedMenu(season, vatCountry, seedDefaultQuantity),
+        ]);
+        inventory = menu.menu_items.map((item) => ({
+          wine_id: item.wine_id,
+          producer: item.producer,
+          wine_name: item.wine_name,
+          region: item.region,
+          country: item.country,
+          appellation: item.appellation,
+          wine_color: item.section,
+          vintage: item.vintage,
+          grape_variety: null,
+          drink_from: null,
+          drink_to: null,
+          quantity: item.quantity,
+          purchase_price_ht: item.purchase_price_ht,
+          avg_market_price: item.avg_market_price,
+        }));
+        exportedMenu = menu;
+        analysis = report;
+        triggerReport = null;
+      } else {
+        const [inv, menu, report] = await Promise.all([
+          api.wineCard.inventory(),
+          api.wineCard.exportEditableMenu(season, vatCountry),
+          api.wineCard.analyzeMenu(season, vatCountry),
+        ]);
+        inventory = inv.items;
+        exportedMenu = menu;
+        analysis = report;
+        triggerReport = await api.wineCard.latestTrigger();
+      }
       pricingPreview = await api.wineCard.previewPricing(pricingPreviewInput, vatCountry);
-      triggerReport = await api.wineCard.latestTrigger();
     } catch (e: any) {
       error = e.message || "Failed to load wine-card data";
     } finally {
@@ -44,6 +72,7 @@
   }
 
   async function runTriggerNow() {
+    if (seedDemoMode) return;
     triggerRunning = true;
     error = "";
     try {
@@ -72,16 +101,20 @@
 </script>
 
 <div class="flex flex-col gap-6 p-4 md:p-6">
-  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-    <h2 class="font-semibold text-base flex items-center gap-2">
-      <ScrollText size="16" /> Wine Card Builder
-    </h2>
-    <div class="flex items-center gap-2">
-      <select class="select select-sm select-bordered" bind:value={season} onchange={loadWineCardData}>
-        {#each seasons as s}
-          <option value={s}>{s}</option>
-        {/each}
-      </select>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <h2 class="font-semibold text-base flex items-center gap-2">
+        <ScrollText size="16" /> Wine Card Builder
+      </h2>
+      <div class="flex items-center gap-2">
+        <label class="label cursor-pointer gap-2">
+          <span class="label-text text-xs">Seed Demo Mode</span>
+          <input type="checkbox" class="toggle toggle-sm toggle-primary" bind:checked={seedDemoMode} onchange={loadWineCardData} />
+        </label>
+        <select class="select select-sm select-bordered" bind:value={season} onchange={loadWineCardData}>
+          {#each seasons as s}
+            <option value={s}>{s}</option>
+          {/each}
+        </select>
       <select class="select select-sm select-bordered" bind:value={vatCountry} onchange={loadWineCardData}>
         {#each vatCountries as c}
           <option value={c}>VAT {c}</option>
@@ -90,7 +123,7 @@
       <button class="btn btn-sm btn-ghost" onclick={loadWineCardData}>
         <RefreshCcw size="14" /> Refresh
       </button>
-      <button class="btn btn-sm btn-primary" onclick={runTriggerNow} disabled={triggerRunning}>
+      <button class="btn btn-sm btn-primary" onclick={runTriggerNow} disabled={triggerRunning || seedDemoMode}>
         {#if triggerRunning}<span class="loading loading-spinner loading-xs"></span>{/if}
         Trigger
       </button>
@@ -111,7 +144,9 @@
         <div class="card-body p-4">
           <div class="text-base-content/60 text-sm">Inventory lines</div>
           <div class="text-2xl font-bold">{inventory.length}</div>
-          <div class="text-xs text-base-content/50">Based on in-cellar bottles</div>
+          <div class="text-xs text-base-content/50">
+            {seedDemoMode ? `Seed catalog (default qty ${seedDefaultQuantity})` : "Based on in-cellar bottles"}
+          </div>
         </div>
       </div>
       <div class="card bg-base-100 border border-primary-content">
@@ -130,41 +165,57 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 border border-primary-content">
-      <div class="card-body p-4 gap-3">
-        <h3 class="font-semibold">Auto Trigger Status</h3>
-        <div class="flex flex-wrap items-center gap-3 text-sm">
-          <span class="badge badge-outline">Min stock threshold</span>
-          <input class="input input-bordered input-sm w-24" type="number" min="1" bind:value={minStockThreshold} />
-        </div>
-        {#if triggerReport}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-            <div>Last reason</div><div class="font-medium">{triggerReport.trigger_reason}</div>
-            <div>Last run</div><div class="font-medium">{new Date(triggerReport.triggered_at).toLocaleString()}</div>
-            <div>Low stock count</div><div class="font-medium">{triggerReport.low_stock_count}</div>
-            <div>Needs purchase</div><div class="font-medium">{triggerReport.should_consider_purchase ? "yes" : "no"}</div>
+    {#if seedDemoMode}
+      <div class="card bg-base-100 border border-primary-content">
+        <div class="card-body p-4 gap-3">
+          <h3 class="font-semibold">Seed Demo Controls</h3>
+          <div class="flex flex-wrap items-center gap-3 text-sm">
+            <span class="badge badge-outline">Default stock per wine</span>
+            <input class="input input-bordered input-sm w-24" type="number" min="1" bind:value={seedDefaultQuantity} />
+            <button class="btn btn-sm btn-primary" onclick={loadWineCardData}>Regenerate Seed Menu</button>
           </div>
-          {#if triggerReport.procurement_suggestions.length > 0}
-            <div class="mt-2 flex flex-col gap-1">
-              <div class="font-medium text-sm">Procurement suggestions</div>
-              {#each triggerReport.procurement_suggestions as suggestion}
-                <div class="text-sm bg-base-200 rounded-md px-2 py-1">{suggestion}</div>
-              {/each}
-            </div>
-          {/if}
-          {#if triggerReport.wine_fair_watchlist.length > 0}
-            <div class="mt-2 flex flex-col gap-1">
-              <div class="font-medium text-sm">Wine fair watchlist</div>
-              {#each triggerReport.wine_fair_watchlist as item}
-                <div class="text-sm bg-base-200 rounded-md px-2 py-1">{item}</div>
-              {/each}
-            </div>
-          {/if}
-        {:else}
-          <div class="text-sm text-base-content/60">No trigger run yet. Click Trigger to create the first report.</div>
-        {/if}
+          <div class="text-sm text-base-content/60">
+            Trigger is disabled in seed mode because it depends on real transaction events and live cellar stock.
+          </div>
+        </div>
       </div>
-    </div>
+    {:else}
+      <div class="card bg-base-100 border border-primary-content">
+        <div class="card-body p-4 gap-3">
+          <h3 class="font-semibold">Auto Trigger Status</h3>
+          <div class="flex flex-wrap items-center gap-3 text-sm">
+            <span class="badge badge-outline">Min stock threshold</span>
+            <input class="input input-bordered input-sm w-24" type="number" min="1" bind:value={minStockThreshold} />
+          </div>
+          {#if triggerReport}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              <div>Last reason</div><div class="font-medium">{triggerReport.trigger_reason}</div>
+              <div>Last run</div><div class="font-medium">{new Date(triggerReport.triggered_at).toLocaleString()}</div>
+              <div>Low stock count</div><div class="font-medium">{triggerReport.low_stock_count}</div>
+              <div>Needs purchase</div><div class="font-medium">{triggerReport.should_consider_purchase ? "yes" : "no"}</div>
+            </div>
+            {#if triggerReport.procurement_suggestions.length > 0}
+              <div class="mt-2 flex flex-col gap-1">
+                <div class="font-medium text-sm">Procurement suggestions</div>
+                {#each triggerReport.procurement_suggestions as suggestion}
+                  <div class="text-sm bg-base-200 rounded-md px-2 py-1">{suggestion}</div>
+                {/each}
+              </div>
+            {/if}
+            {#if triggerReport.wine_fair_watchlist.length > 0}
+              <div class="mt-2 flex flex-col gap-1">
+                <div class="font-medium text-sm">Wine fair watchlist</div>
+                {#each triggerReport.wine_fair_watchlist as item}
+                  <div class="text-sm bg-base-200 rounded-md px-2 py-1">{item}</div>
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <div class="text-sm text-base-content/60">No trigger run yet. Click Trigger to create the first report.</div>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
       <div class="card bg-base-100 border border-primary-content">

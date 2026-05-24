@@ -84,6 +84,43 @@ async def analyze_wine_menu(
         raise HTTPException(status_code=500, detail=f"Failed to analyze menu: {exc}") from exc
 
 
+@router.get("/menu/export/seeds", response_model=MenuExportResult)
+async def export_seed_wine_catalog_menu(
+    season: Season = Season.WINTER,
+    vat_country: VatCountry = VatCountry.LU,
+    default_quantity: int = 6,
+):
+    try:
+        service = WineCardService()
+        return await service.export_editable_menu_from_seeds(
+            season=season,
+            vat_country=vat_country,
+            default_quantity=default_quantity,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to export seed menu: {exc}") from exc
+
+
+@router.get("/menu/analysis/seeds", response_model=MenuAnalysisResult)
+async def analyze_seed_wine_catalog(
+    season: Season = Season.WINTER,
+    vat_country: VatCountry = VatCountry.LU,
+    default_quantity: int = 6,
+):
+    try:
+        service = WineCardService()
+        return await service.analyze_seed_catalog(
+            season=season,
+            vat_country=vat_country,
+            default_quantity=default_quantity,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze seed menu: {exc}",
+        ) from exc
+
+
 @router.post("/trigger/run", response_model=WineCardTriggerReport)
 async def run_wine_card_trigger(
     reason: TriggerReason = TriggerReason.MANUAL,
