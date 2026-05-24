@@ -274,6 +274,21 @@ export const api = {
       fetchApi<WineCardMenuAnalysis>(
         `/wine-card/menu/analysis?season=${season}&vat_country=${vat_country}`
       ),
+    generateOneShotMenu: (
+      occasion: WineCardOccasion,
+      vat_country: VatCountry = "LU",
+      service_count = 3,
+      menu_total_price_ttc?: number,
+    ) =>
+      fetchApi<WineCardOneShotResult>("/wine-card/menu/one-shot", {
+        method: "POST",
+        body: JSON.stringify({
+          occasion,
+          vat_country,
+          service_count,
+          menu_total_price_ttc,
+        }),
+      }),
     runTrigger: (
       reason: WineCardTriggerReason = "manual",
       season: WineCardSeason = "winter",

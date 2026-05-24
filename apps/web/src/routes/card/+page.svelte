@@ -1,9 +1,25 @@
 <script lang="ts">
   import { ScrollText, Sparkles, AlertTriangle, RefreshCcw } from "@lucide/svelte";
-  import { api, type VatCountry, type WineCardInventoryItem, type WineCardMenuAnalysis, type WineCardMenuExportResult, type WineCardPricingResult, type WineCardSeason, type WineCardTriggerReport } from "$lib/api";
+  import { api, type VatCountry, type WineCardInventoryItem, type WineCardMenuAnalysis, type WineCardMenuExportResult, type WineCardOccasion, type WineCardPricingResult, type WineCardSeason, type WineCardTriggerReport } from "$lib/api";
 
   const seasons: WineCardSeason[] = ["spring", "summer", "autumn", "winter"];
   const vatCountries: VatCountry[] = ["LU", "FR", "BE", "DE"];
+  const occasions: WineCardOccasion[] = ["christmas", "valentine", "easter", "banquet"];
+  const menuSectionOrder = ["rose", "sparkling", "white", "red", "dessert", "fortified"];
+  const menuSectionLabel: Record<string, string> = {
+    rose: "Rosé",
+    sparkling: "Sparkling",
+    white: "White",
+    red: "Red",
+    dessert: "Dessert",
+    fortified: "Fortified",
+  };
+  const occasionLabels: Record<WineCardOccasion, string> = {
+    christmas: "Christmas",
+    valentine: "Valentine",
+    easter: "Easter",
+    banquet: "Banquet",
+  };
 
   let loading = $state(true);
   let error = $state("");
@@ -17,6 +33,34 @@
   let triggerReport = $state<WineCardTriggerReport | null>(null);
   let triggerRunning = $state(false);
   let minStockThreshold = $state(2);
+  let oneShotOccasion = $state<WineCardOccasion>("christmas");
+  let oneShotRunning = $state(false);
+  let oneShotSummary = $state("");
+  let oneShotNotes = $state<string[]>([]);
+  let oneShotServiceCount = $state(3);
+  let oneShotMenuTotalPrice = $state<number | null>(null);
+  let oneShotSuggestedPairingPrice = $state<number | null>(null);
+  let oneShotSuggestedPerServicePrice = $state<number | null>(null);
+  let oneShotPrompt = $state("");
+  let menuViewMode = $state<"preview" | "raw">("preview");
+
+  const menuPreviewGroups = $derived.by(() => {
+    const items = exportedMenu?.menu_items ?? [];
+    return menuSectionOrder
+      .map((section) => ({
+        section,
+        label: menuSectionLabel[section] ?? section,
+        items: items.filter((item) => item.section === section),
+      }))
+      .filter((group) => group.items.length > 0);
+  });
+
+  function extractRestaurantTitle(markdown: string | undefined): string {
+    if (!markdown) return "Restaurant Wine Menu";
+    const firstLine = markdown.split("\n").find((line) => line.startsWith("# "));
+    if (!firstLine) return "Restaurant Wine Menu";
+    return firstLine.replace(/^#\s+/, "").trim();
+  }
 
   async function loadWineCardData() {
     loading = true;
@@ -60,10 +104,64 @@
         analysis = triggerReport.menu_analysis;
       }
     } catch (e: any) {
-      error = e.message || "Failed to run trigger";
+      error = e.message || "Failed to refresh wine strategy";
     } finally {
       triggerRunning = false;
     }
+  }
+
+  async function runOneShotMenu() {
+    oneShotRunning = true;
+    error = "";
+    try {
+      const normalizedMenuPrice =
+        typeof oneShotMenuTotalPrice === "number" &&
+        Number.isFinite(oneShotMenuTotalPrice) &&
+        oneShotMenuTotalPrice > 0
+          ? oneShotMenuTotalPrice
+          : undefined;
+      const result = await api.wineCard.generateOneShotMenu(
+        oneShotOccasion,
+        vatCountry,
+        oneShotServiceCount,
+        normalizedMenuPrice,
+      );
+      season = result.season;
+      exportedMenu = result.menu_export;
+      analysis = result.menu_analysis;
+      inventory = result.menu_export.menu_items.map((item) => ({
+        wine_id: item.wine_id,
+        producer: item.producer,
+        wine_name: item.wine_name,
+        region: item.region,
+        country: item.country,
+        appellation: item.appellation,
+        wine_color: item.section,
+        vintage: item.vintage,
+        grape_variety: null,
+        drink_from: null,
+        drink_to: null,
+        quantity: item.quantity,
+        purchase_price_ht: item.purchase_price_ht,
+        avg_market_price: item.avg_market_price,
+      }));
+      oneShotSummary = result.summary;
+      oneShotNotes = result.pairing_notes;
+      oneShotSuggestedPairingPrice = result.suggested_pairing_price_ttc;
+      oneShotSuggestedPerServicePrice = result.suggested_per_service_price_ttc;
+      oneShotPrompt = result.llm_prompt;
+      menuViewMode = "preview";
+    } catch (e: any) {
+      error = e.message || "Failed to generate one-shot menu";
+    } finally {
+      oneShotRunning = false;
+    }
+  }
+
+  function scrollToFullMenuOutput() {
+    const el = document.getElementById("menu-output");
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   $effect(() => {
@@ -92,7 +190,29 @@
       </button>
       <button class="btn btn-sm btn-primary" onclick={runTriggerNow} disabled={triggerRunning}>
         {#if triggerRunning}<span class="loading loading-spinner loading-xs"></span>{/if}
-        Trigger
+        Refresh Wine Strategy
+      </button>
+      <select class="select select-sm select-bordered" bind:value={oneShotOccasion}>
+        {#each occasions as o}
+          <option value={o}>{occasionLabels[o]}</option>
+        {/each}
+      </select>
+      <select class="select select-sm select-bordered" bind:value={oneShotServiceCount}>
+        <option value={3}>3 services</option>
+        <option value={4}>4 services</option>
+        <option value={5}>5 services</option>
+      </select>
+      <input
+        class="input input-bordered input-sm w-36"
+        type="number"
+        min="0"
+        step="0.5"
+        placeholder="Menu price €"
+        bind:value={oneShotMenuTotalPrice}
+      />
+      <button class="btn btn-sm btn-outline" onclick={runOneShotMenu} disabled={oneShotRunning}>
+        {#if oneShotRunning}<span class="loading loading-spinner loading-xs"></span>{/if}
+        One-shot menu
       </button>
     </div>
   </div>
@@ -116,9 +236,14 @@
       </div>
       <div class="card bg-base-100 border border-primary-content">
         <div class="card-body p-4">
-          <div class="text-base-content/60 text-sm">Exported menu rows</div>
-          <div class="text-2xl font-bold">{exportedMenu?.items_count ?? 0}</div>
-          <div class="text-xs text-base-content/50">Season: {season}</div>
+          <div class="text-base-content/60 text-sm">Selected for menu</div>
+          <div class="text-2xl font-bold">
+            {analysis?.selected_for_menu ?? exportedMenu?.items_count ?? 0}
+            <span class="text-sm font-normal text-base-content/60">
+              / {analysis?.total_inventory_candidates ?? inventory.length}
+            </span>
+          </div>
+          <div class="text-xs text-base-content/50">Seasonal curation (not full cellar)</div>
         </div>
       </div>
       <div class="card bg-base-100 border border-primary-content">
@@ -132,21 +257,85 @@
 
     <div class="card bg-base-100 border border-primary-content">
       <div class="card-body p-4 gap-3">
-        <h3 class="font-semibold">Auto Trigger Status</h3>
+        {#if oneShotSummary}
+          <div class="text-sm bg-base-200 rounded-md p-2">
+            <div class="font-medium">One-shot summary</div>
+            <div class="text-base-content/80">{oneShotSummary}</div>
+            {#if oneShotSuggestedPairingPrice !== null}
+              <div class="mt-1 text-xs">
+                Suggested pairing price:
+                <span class="font-medium">€{oneShotSuggestedPairingPrice.toFixed(2)} TTC</span>
+                {#if oneShotSuggestedPerServicePrice !== null}
+                  · per service target
+                  <span class="font-medium">€{oneShotSuggestedPerServicePrice.toFixed(2)}</span>
+                {/if}
+              </div>
+            {/if}
+            {#if oneShotNotes.length > 0}
+              <div class="mt-2 text-xs text-base-content/70">
+                {oneShotNotes.join(" · ")}
+              </div>
+            {/if}
+            {#if exportedMenu && exportedMenu.menu_items.length > 0}
+              <div class="mt-3 rounded-md border border-base-300 bg-base-100 p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="text-xs font-medium">Generated one-shot menu (quick preview)</div>
+                  <button class="btn btn-xs btn-outline" onclick={scrollToFullMenuOutput}>
+                    Open full menu
+                  </button>
+                </div>
+                <div class="mt-1 text-[11px] text-base-content/60">
+                  Showing first 8 wines · full editable version is in Menu Output below.
+                </div>
+                <div class="mt-2 overflow-x-auto">
+                  <table class="table table-xs w-full">
+                    <thead>
+                      <tr>
+                        <th>Section</th>
+                        <th>Wine</th>
+                        <th class="text-center">Vintage</th>
+                        <th class="text-right">Glass</th>
+                        <th class="text-right">Bottle</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each exportedMenu.menu_items.slice(0, 8) as item}
+                        <tr>
+                          <td>{menuSectionLabel[item.section] ?? item.section}</td>
+                          <td class="font-medium">{item.producer} — {item.wine_name}</td>
+                          <td class="text-center">{item.vintage || "NV"}</td>
+                          <td class="text-right">€{item.glass_price_ttc.toFixed(2)}</td>
+                          <td class="text-right">€{item.selling_price_ttc.toFixed(2)}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            {/if}
+            {#if oneShotPrompt}
+              <details class="mt-2">
+                <summary class="cursor-pointer text-xs font-medium">LLM prompt preview</summary>
+                <pre class="mt-1 text-[11px] whitespace-pre-wrap bg-base-100 rounded p-2 border border-base-300">{oneShotPrompt}</pre>
+              </details>
+            {/if}
+          </div>
+        {/if}
+        <h3 class="font-semibold">Wine Strategy Check</h3>
         <div class="flex flex-wrap items-center gap-3 text-sm">
           <span class="badge badge-outline">Min stock threshold</span>
           <input class="input input-bordered input-sm w-24" type="number" min="1" bind:value={minStockThreshold} />
         </div>
         {#if triggerReport}
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-            <div>Last reason</div><div class="font-medium">{triggerReport.trigger_reason}</div>
+            <div>Last audit type</div><div class="font-medium">{triggerReport.trigger_reason}</div>
             <div>Last run</div><div class="font-medium">{new Date(triggerReport.triggered_at).toLocaleString()}</div>
-            <div>Low stock count</div><div class="font-medium">{triggerReport.low_stock_count}</div>
-            <div>Needs purchase</div><div class="font-medium">{triggerReport.should_consider_purchase ? "yes" : "no"}</div>
+            <div>Items needing attention</div><div class="font-medium">{triggerReport.low_stock_count}</div>
+            <div>Restock recommended</div><div class="font-medium">{triggerReport.should_consider_purchase ? "yes" : "no"}</div>
           </div>
           {#if triggerReport.procurement_suggestions.length > 0}
             <div class="mt-2 flex flex-col gap-1">
-              <div class="font-medium text-sm">Procurement suggestions</div>
+              <div class="font-medium text-sm">Restock suggestions</div>
               {#each triggerReport.procurement_suggestions as suggestion}
                 <div class="text-sm bg-base-200 rounded-md px-2 py-1">{suggestion}</div>
               {/each}
@@ -154,14 +343,14 @@
           {/if}
           {#if triggerReport.wine_fair_watchlist.length > 0}
             <div class="mt-2 flex flex-col gap-1">
-              <div class="font-medium text-sm">Wine fair watchlist</div>
+              <div class="font-medium text-sm">Market watchlist</div>
               {#each triggerReport.wine_fair_watchlist as item}
                 <div class="text-sm bg-base-200 rounded-md px-2 py-1">{item}</div>
               {/each}
             </div>
           {/if}
         {:else}
-          <div class="text-sm text-base-content/60">No trigger run yet. Click Trigger to create the first report.</div>
+          <div class="text-sm text-base-content/60">No strategy check run yet. Click Refresh Wine Strategy to create the first report.</div>
         {/if}
       </div>
     </div>
@@ -171,6 +360,15 @@
         <div class="card-body p-4 gap-3">
           <h3 class="font-semibold flex items-center gap-2"><Sparkles size="15" /> Menu Analysis</h3>
           <p class="text-sm text-base-content/80">{analysis?.summary}</p>
+          {#if analysis}
+            <div class="text-sm">
+              <span class="font-medium">Selection:</span>
+              <span class="text-base-content/70">
+                {" "}
+                {analysis.selected_for_menu} / {analysis.total_inventory_candidates} references on menu
+              </span>
+            </div>
+          {/if}
           <div class="text-sm">
             <span class="font-medium">Strategy focus:</span>
             <span class="text-base-content/70"> {analysis?.strategy.focus.join(", ")}</span>
@@ -185,6 +383,29 @@
               <div class="font-medium text-sm flex items-center gap-2"><AlertTriangle size="14" /> Low stock</div>
               {#each analysis.low_stock_warnings as warning}
                 <div class="badge badge-warning badge-outline">{warning}</div>
+              {/each}
+            </div>
+          {/if}
+          {#if analysis && analysis.cheap_wine_low_stock_alerts.length > 0}
+            <div class="mt-2 flex flex-col gap-2">
+              <div class="font-medium text-sm flex items-center gap-2"><AlertTriangle size="14" /> Cheap wines to replenish</div>
+              {#each analysis.cheap_wine_low_stock_alerts as alertText}
+                <div class="text-sm bg-warning/15 border border-warning/40 rounded-md px-2 py-1">
+                  {alertText}
+                </div>
+              {/each}
+              {#if analysis.reprint_menu_recommended}
+                <div class="text-sm font-medium text-warning">
+                  Recommendation: replenish first, then reprint wine list.
+                </div>
+              {/if}
+            </div>
+          {/if}
+          {#if analysis && analysis.duplicate_vintage_alerts.length > 0}
+            <div class="mt-2 flex flex-col gap-2">
+              <div class="font-medium text-sm">Multi-vintage decision needed (big wines)</div>
+              {#each analysis.duplicate_vintage_alerts as alertText}
+                <div class="text-sm bg-base-200 rounded-md px-2 py-1">{alertText}</div>
               {/each}
             </div>
           {/if}
@@ -225,10 +446,79 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 border border-primary-content">
+    <div id="menu-output" class="card bg-base-100 border border-primary-content">
       <div class="card-body p-4 gap-3">
-        <h3 class="font-semibold">Editable Markdown</h3>
-        <textarea class="textarea textarea-bordered min-h-[420px] font-mono text-xs" readonly>{exportedMenu?.markdown ?? ""}</textarea>
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="font-semibold">Menu Output</h3>
+          <div class="join">
+            <button
+              class="btn btn-xs join-item {menuViewMode === 'preview' ? 'btn-primary' : 'btn-ghost'}"
+              onclick={() => (menuViewMode = "preview")}
+            >
+              Preview
+            </button>
+            <button
+              class="btn btn-xs join-item {menuViewMode === 'raw' ? 'btn-primary' : 'btn-ghost'}"
+              onclick={() => (menuViewMode = "raw")}
+            >
+              Raw Markdown
+            </button>
+          </div>
+        </div>
+
+        {#if menuViewMode === "raw"}
+          <textarea class="textarea textarea-bordered min-h-[420px] font-mono text-xs" readonly>{exportedMenu?.markdown ?? ""}</textarea>
+        {:else if exportedMenu}
+          <div class="border border-base-300 rounded-xl p-4 bg-base-100">
+            <div class="text-center mb-4">
+              <h4 class="text-xl font-semibold">{extractRestaurantTitle(exportedMenu.markdown)}</h4>
+              <div class="text-sm text-base-content/70 mt-1">
+                Wine Menu — {exportedMenu.season}
+              </div>
+              <div class="text-xs text-base-content/60 mt-1">
+                Prices TTC • Service compris
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-4">
+              {#each menuPreviewGroups as group}
+                <div class="overflow-x-auto">
+                  <h5 class="font-semibold mb-2">{group.label}</h5>
+                  <table class="table table-zebra table-xs w-full">
+                    <thead>
+                      <tr>
+                        <th>Wine</th>
+                        <th>Origin</th>
+                        <th class="text-center">Vintage</th>
+                        <th class="text-right">Glass 12cl TTC</th>
+                        <th class="text-right">Bottle 75cl TTC</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each group.items as item}
+                        <tr>
+                          <td class="font-medium">{item.producer} — {item.wine_name}</td>
+                          <td>{[item.appellation, item.region, item.country].filter(Boolean).join(" / ") || "—"}</td>
+                          <td class="text-center">{item.vintage || "NV"}</td>
+                          <td class="text-right">€{item.glass_price_ttc.toFixed(2)}</td>
+                          <td class="text-right">€{item.selling_price_ttc.toFixed(2)}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/each}
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-base-300 text-xs text-base-content/70 space-y-1">
+              <div><span class="font-medium">Prix TTC service compris.</span></div>
+              <div>L’abus d’alcool est dangereux pour la santé, à consommer avec modération.</div>
+              <div>La vente d’alcool est interdite aux mineurs.</div>
+            </div>
+          </div>
+        {:else}
+          <div class="text-sm text-base-content/60">No menu generated yet.</div>
+        {/if}
       </div>
     </div>
   {/if}

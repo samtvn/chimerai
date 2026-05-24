@@ -27,6 +27,13 @@ class TriggerReason(str, Enum):
     LOW_STOCK_SCAN = "low_stock_scan"
 
 
+class Occasion(str, Enum):
+    CHRISTMAS = "christmas"
+    VALENTINE = "valentine"
+    EASTER = "easter"
+    BANQUET = "banquet"
+
+
 class InventoryItem(BaseModel):
     wine_id: int
     producer: str
@@ -90,8 +97,13 @@ class MenuAnalysisResult(BaseModel):
     season: Season
     strategy: SeasonalStrategy
     summary: str
+    selected_for_menu: int = Field(ge=0)
+    total_inventory_candidates: int = Field(ge=0)
     missing_categories: list[str]
     low_stock_warnings: list[str]
+    cheap_wine_low_stock_alerts: list[str]
+    duplicate_vintage_alerts: list[str]
+    reprint_menu_recommended: bool
     by_the_glass_suggestions: list[str]
     section_counts: dict[str, int]
 
@@ -112,3 +124,21 @@ class WineCardTriggerReport(BaseModel):
     wine_fair_watchlist: list[str]
     menu_export: MenuExportResult | None = None
     menu_analysis: MenuAnalysisResult | None = None
+
+
+class OneShotMenuResult(BaseModel):
+    occasion: Occasion
+    season: Season
+    vat_country: VatCountry
+    by_glass_mode: bool
+    service_count: int = Field(ge=3, le=5)
+    menu_total_price_ttc: float | None = Field(default=None, ge=0)
+    suggested_pairing_price_ttc: float | None = Field(default=None, ge=0)
+    suggested_per_service_price_ttc: float | None = Field(default=None, ge=0)
+    inventory_candidates: int = Field(ge=0)
+    selected_items: int = Field(ge=0)
+    summary: str
+    llm_prompt: str
+    pairing_notes: list[str]
+    menu_export: MenuExportResult
+    menu_analysis: MenuAnalysisResult
