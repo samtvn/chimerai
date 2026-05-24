@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .transactions import Transaction
     from .menu import MenuItem
     from .alerts import Alert
+    from .agent_run_session import AgentRunSession
 
 
 class UserType(str, Enum):
@@ -36,3 +37,4 @@ class User(SQLModel, table=True):
     recommendations: List["Recommendation"] = Relationship(back_populates="user")
     menu_items: List["MenuItem"] = Relationship(back_populates="user")
     alerts: List["Alert"] = Relationship(back_populates="user")
+    agent_run_sessions: List["AgentRunSession"] = Relationship(back_populates="user")
