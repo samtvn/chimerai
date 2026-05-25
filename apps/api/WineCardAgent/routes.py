@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.dependencies import get_demo_user_id, get_read_db
-from database.repositories.user_repository import UserRepository
+from apps.api.database.dependencies import get_demo_user_id, get_read_db
+from apps.api.database.repositories.user_repository import UserRepository
 from .models import (
     MenuAnalysisResult,
     MenuExportResult,

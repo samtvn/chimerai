@@ -5,9 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.database import engine
-from database.dependencies import get_read_db
-from database.repositories import UserRepository
+from apps.api.database.database import engine
+from apps.api.database.dependencies import get_read_db
+from apps.api.database.repositories import UserRepository
 
 # from routes.agent import router as agent_router
 from routes.alerts import router as alerts_router

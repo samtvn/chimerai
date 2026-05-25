@@ -7,9 +7,9 @@ from uuid import UUID
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models.cellar import BottleStatus, Cellar
-from database.models.transactions import Transaction, TransactionType
-from database.models.wines import Wine
+from apps.api.database.models.cellar import BottleStatus, Cellar
+from apps.api.database.models.transactions import Transaction, TransactionType
+from apps.api.database.models.wines import Wine
 from .models import InventoryItem
 
 
@@ -24,11 +24,9 @@ class WineCardRepository:
             (
                 and_(
                     Transaction.type == TransactionType.PURCHASE,
-                    Transaction.quantity.is_not(None),
-                    Transaction.quantity > 0,
                     Transaction.price.is_not(None),
                 ),
-                Transaction.price / Transaction.quantity,
+                Transaction.price,
             ),
             else_=None,
         )
