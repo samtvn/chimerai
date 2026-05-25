@@ -7,9 +7,9 @@ from uuid import UUID
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.database.models.cellar import BottleStatus, Cellar
-from apps.api.database.models.transactions import Transaction, TransactionType
-from apps.api.database.models.wines import Wine
+from database.models.cellar import BottleStatus, Cellar
+from database.models.transactions import Transaction, TransactionType
+from database.models.wines import Wine
 from .models import InventoryItem
 
 

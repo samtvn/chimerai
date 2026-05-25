@@ -270,26 +270,25 @@ export const api = {
       fetchApi<WineCardMenuExportResult>(
         `/wine-card/menu/export?season=${season}&vat_country=${vat_country}`
       ),
-    exportSeedEditableMenu: (
-      season: WineCardSeason,
-      vat_country: VatCountry = "LU",
-      default_quantity = 6,
-    ) =>
-      fetchApi<WineCardMenuExportResult>(
-        `/wine-card/menu/export/seeds?season=${season}&vat_country=${vat_country}&default_quantity=${default_quantity}`
-      ),
     analyzeMenu: (season: WineCardSeason, vat_country: VatCountry = "LU") =>
       fetchApi<WineCardMenuAnalysis>(
         `/wine-card/menu/analysis?season=${season}&vat_country=${vat_country}`
       ),
-    analyzeSeedMenu: (
-      season: WineCardSeason,
+    generateOneShotMenu: (
+      occasion: WineCardOccasion,
       vat_country: VatCountry = "LU",
-      default_quantity = 6,
+      service_count = 3,
+      menu_total_price_ttc?: number,
     ) =>
-      fetchApi<WineCardMenuAnalysis>(
-        `/wine-card/menu/analysis/seeds?season=${season}&vat_country=${vat_country}&default_quantity=${default_quantity}`
-      ),
+      fetchApi<WineCardOneShotResult>("/wine-card/menu/one-shot", {
+        method: "POST",
+        body: JSON.stringify({
+          occasion,
+          vat_country,
+          service_count,
+          menu_total_price_ttc,
+        }),
+      }),
     runTrigger: (
       reason: WineCardTriggerReason = "manual",
       season: WineCardSeason = "winter",

@@ -13,13 +13,13 @@ import asyncio
 import os
 from uuid import uuid4
 
-from apps.api.WineCardAgent.models import InventoryItem, Season, VatCountry
-from apps.api.WineCardAgent.pricing import (
+from WineCardAgent.models import InventoryItem, Occasion, Season, VatCountry
+from WineCardAgent.pricing import (
     VAT_RATES_BY_COUNTRY,
     calculate_restaurant_price_ttc,
     get_vat_rate,
 )
-from apps.api.WineCardAgent.service import WineCardService
+from WineCardAgent.service import WineCardService
 
 
 def _sample_inventory() -> list[InventoryItem]:
@@ -35,8 +35,22 @@ def _sample_inventory() -> list[InventoryItem]:
             vintage="2022",
             grape_variety="Chardonnay",
             quantity=8,
-            purchase_price_ht=12.5,
-            avg_market_price=19.0,
+            purchase_price_ht=58.0,
+            avg_market_price=62.0,
+        ),
+        InventoryItem(
+            wine_id=104,
+            producer="Domaine Test",
+            wine_name="Chablis Village",
+            region="Burgundy",
+            country="France",
+            appellation="Chablis",
+            wine_color="white",
+            vintage="2019",
+            grape_variety="Chardonnay",
+            quantity=3,
+            purchase_price_ht=64.0,
+            avg_market_price=70.0,
         ),
         InventoryItem(
             wine_id=102,
@@ -48,7 +62,7 @@ def _sample_inventory() -> list[InventoryItem]:
             wine_color="red",
             vintage="2021",
             grape_variety="Grenache Syrah",
-            quantity=5,
+            quantity=1,
             purchase_price_ht=9.8,
             avg_market_price=15.5,
         ),
@@ -110,38 +124,65 @@ async def test_service_export_and_analysis_offline():
     user_id = uuid4()
 
     inventory = await service.read_inventory(user_id)
-    assert len(inventory) == 3
+    assert len(inventory) == 4
 
     menu = await service.export_editable_menu(user_id, Season.WINTER, vat_country=VatCountry.FR)
     assert menu.items_count == 3
     assert menu.vat_country == VatCountry.FR
     assert "Editable Wine List" in menu.markdown
+    assert menu.markdown.startswith("# Chimerai Bistro")
+    assert "2019" in menu.markdown
+    assert "12cl TTC | Bottle TTC" in menu.markdown
+    assert "| Stock |" not in menu.markdown
+    assert "Prix TTC service compris." in menu.markdown
+    assert "consommer avec modération" in menu.markdown
     assert menu.menu_items[0].vat_country == VatCountry.FR
     assert menu.menu_items[0].vat_rate == 0.20
 
     analysis = await service.analyze_menu(user_id, Season.WINTER, vat_country=VatCountry.FR)
     assert analysis.season == Season.WINTER
+    assert analysis.total_inventory_candidates == 3
+    assert analysis.selected_for_menu == 3
+    assert analysis.reprint_menu_recommended is True
+    assert len(analysis.cheap_wine_low_stock_alerts) > 0
+    assert len(analysis.duplicate_vintage_alerts) > 0
     assert isinstance(analysis.section_counts, dict)
     assert len(analysis.by_the_glass_suggestions) <= 6
 
 
-async def test_seed_catalog_export_offline():
-    service = WineCardService()
-    menu = await service.export_editable_menu_from_seeds(
-        season=Season.WINTER,
-        vat_country=VatCountry.LU,
-        default_quantity=6,
-    )
-    assert menu.items_count > 0
-    assert "Editable Wine List" in menu.markdown
+async def test_one_shot_menu_offline():
+    service = WineCardService(_FakeWineCardRepository(_sample_inventory()))
+    user_id = uuid4()
 
-    analysis = await service.analyze_seed_catalog(
-        season=Season.WINTER,
+    one_shot = await service.generate_one_shot_menu(
+        user_id=user_id,
+        occasion=Occasion.CHRISTMAS,
         vat_country=VatCountry.LU,
-        default_quantity=6,
+        service_count=3,
+        menu_total_price_ttc=95.0,
     )
-    assert isinstance(analysis.section_counts, dict)
-    assert len(analysis.section_counts) > 0
+    assert one_shot.occasion == Occasion.CHRISTMAS
+    assert one_shot.season == Season.WINTER
+    assert one_shot.by_glass_mode is True
+    assert one_shot.service_count == 3
+    assert one_shot.menu_total_price_ttc == 95.0
+    assert one_shot.suggested_pairing_price_ttc is not None
+    assert one_shot.suggested_per_service_price_ttc is not None
+    assert one_shot.inventory_candidates == 4
+    assert one_shot.selected_items > 0
+    assert one_shot.menu_export.items_count == one_shot.selected_items
+    assert len(one_shot.pairing_notes) > 0
+    assert "3 services + 3 wines" in one_shot.llm_prompt
+
+    banquet = await service.generate_one_shot_menu(
+        user_id=user_id,
+        occasion=Occasion.BANQUET,
+        vat_country=VatCountry.LU,
+        service_count=5,
+        menu_total_price_ttc=120.0,
+    )
+    assert banquet.by_glass_mode is False
+    assert banquet.suggested_pairing_price_ttc is None
 
 
 async def test_database_smoke_optional():
@@ -185,7 +226,7 @@ async def main():
 
     async_tests = [
         ("Offline Service Export + Analysis", test_service_export_and_analysis_offline),
-        ("Seed Catalog Export + Analysis (Offline)", test_seed_catalog_export_offline),
+        ("One-Shot Menu (Offline)", test_one_shot_menu_offline),
         ("Database Smoke (Optional)", test_database_smoke_optional),
     ]
     for name, fn in async_tests:
