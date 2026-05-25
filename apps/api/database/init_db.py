@@ -7,14 +7,10 @@ import asyncio
 
 from sqlmodel import SQLModel
 
-from .database import engine
-
 # Import all models so SQLModel registers them before create_all
-from .models.cellar import Cellar  # noqa: F401
-from .models.menu import MenuItem  # noqa: F401
-from .models.transactions import Transaction  # noqa: F401
-from .models.users import User  # noqa: F401
-from .models.wines import Wine  # noqa: F401
+import apps.api.database.models  # noqa: F401
+
+from .database import engine
 from .seeds.cellar import seed_cellars
 from .seeds.transactions import seed_transactions
 from .seeds.users import seed_users
