@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ScrollText, Sparkles, AlertTriangle, RefreshCcw } from "@lucide/svelte";
+  import { ScrollText, Sparkles, AlertTriangle, RefreshCcw, Download } from "@lucide/svelte";
   import { api, type VatCountry, type WineCardInventoryItem, type WineCardMenuAnalysis, type WineCardMenuExportResult, type WineCardOccasion, type WineCardPricingResult, type WineCardSeason, type WineCardTriggerReport } from "$lib/api";
 
   const seasons: WineCardSeason[] = ["spring", "summer", "autumn", "winter"];
@@ -60,6 +60,26 @@
     const firstLine = markdown.split("\n").find((line) => line.startsWith("# "));
     if (!firstLine) return "Restaurant Wine Menu";
     return firstLine.replace(/^#\s+/, "").trim();
+  }
+
+  function downloadCurrentMenuMarkdown() {
+    if (!exportedMenu?.markdown) return;
+    const restaurantName = extractRestaurantTitle(exportedMenu.markdown)
+      .replace(/[^\w\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .toLowerCase();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `${restaurantName || "wine-menu"}-${exportedMenu.season}-${dateStr}.md`;
+    const blob = new Blob([exportedMenu.markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   async function loadWineCardData() {
@@ -450,7 +470,15 @@
       <div class="card-body p-4 gap-3">
         <div class="flex items-center justify-between gap-2">
           <h3 class="font-semibold">Menu Output</h3>
-          <div class="join">
+          <div class="flex items-center gap-2">
+            <button
+              class="btn btn-xs btn-outline"
+              onclick={downloadCurrentMenuMarkdown}
+              disabled={!exportedMenu?.markdown}
+            >
+              <Download size="12" /> Download .md
+            </button>
+            <div class="join">
             <button
               class="btn btn-xs join-item {menuViewMode === 'preview' ? 'btn-primary' : 'btn-ghost'}"
               onclick={() => (menuViewMode = "preview")}
@@ -463,6 +491,7 @@
             >
               Raw Markdown
             </button>
+            </div>
           </div>
         </div>
 
