@@ -1,6 +1,6 @@
 """Structured outputs for the Orchestrator workflow"""
 
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from pydantic import BaseModel, Field
 
@@ -54,3 +54,14 @@ class OrchestratorSearchPlan(BaseModel):
         min_length=1,
         description="Priority ordered recommendations ready for market search",
     )
+
+class OrchestratorDecision(BaseModel):
+
+    next_action: Literal[
+        "build_search_plan",
+        "sales_analysis",
+        "run_market_analysis",
+        "end",
+    ]
+
+    reasoning: str
