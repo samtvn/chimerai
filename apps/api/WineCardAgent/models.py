@@ -77,6 +77,7 @@ class MenuItem(BaseModel):
     avg_market_price: float | None = Field(default=None, ge=0)
     selling_price_ttc: float = Field(ge=0)
     glass_price_ttc: float = Field(ge=0)
+    display_mode: str = "both"  # one of: "both", "glass", "bottle"
 
 
 class MenuExportResult(BaseModel):
