@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
 
 from apps.api.agents.runner import run_once
+from apps.api.agents.event_bus import AgentEvent
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -23,7 +24,7 @@ async def run_agent(request: TriggerRequest, background_tasks: BackgroundTasks):
     Manually trigger the orchestrator.
     The agent runs in the background; events stream via SSE at /sse/stream.
     """
-    background_tasks.add_task(run_once, request.trigger)
+    background_tasks.add_task(run_once, AgentEvent(source="api", type="manual", message=request.trigger))
     return {"status": "started", "trigger": request.trigger}
 
 
@@ -33,5 +34,5 @@ async def run_agent_sync(request: TriggerRequest):
     Trigger the orchestrator and wait for the final response.
     Useful for testing. For production use /run (background) + SSE stream.
     """
-    result = await run_once(request.trigger)
+    result = await run_once(AgentEvent(source="api", type="manual", message=request.trigger))
     return {"status": "completed", "result": result}

@@ -9,6 +9,7 @@ Two entry points:
 """
 
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -18,22 +19,14 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.agents.event_bus import AgentEvent, event_bus
-from apps.api.agents.orchestrator import create_orchestrator, get_checkpointer
+from apps.api.agents.Orchestrator.new_orchestrator import Orchestrator
+from apps.api.agents.Orchestrator.checkpointer import get_checkpointer
+from apps.api.database.repositories.cellar_repository import CellarRepository
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.dependencies import get_demo_user_id
 from apps.api.database.models.agent_run_session import AgentRunSession, RunSessionStatus
 
 logger = logging.getLogger(__name__)
-
-# The 4 subagent-tool names registered on the orchestrator.
-# Used to filter stream events so only orchestrator-level delegation is shown here;
-# each subagent publishes its own inner tool events directly.
-_SUBAGENT_TOOLS = {
-    "run_inventory_audit",
-    "run_sales_analysis",
-    "run_purchase_agent",
-    "run_menu_generator",
-}
 
 
 async def _get_or_create_session(db: AsyncSession, user_id: str, trigger: str):
@@ -95,7 +88,49 @@ async def _update_session_status(
     await db.commit()
 
 
-async def run_once(trigger: str) -> str:
+def _build_graph_input(agent_event: AgentEvent):
+    """Seed a new graph run with fresh routing state while keeping checkpointed analysis."""
+    import uuid
+
+    from apps.api.agents.events import AnalysisRunEvent, WineSoldEvent
+
+    if agent_event.type == "wine_sold":
+        wine_ids: list[str] = []
+        quantity = 1
+
+        if agent_event.message:
+            try:
+                payload = json.loads(agent_event.message)
+            except json.JSONDecodeError:
+                payload = None
+
+            if isinstance(payload, dict):
+                raw_wine_id = payload.get("wine_id") or payload.get("wine_ids")
+                if isinstance(raw_wine_id, list):
+                    wine_ids = [str(wine_id) for wine_id in raw_wine_id if wine_id is not None]
+                elif raw_wine_id is not None:
+                    wine_ids = [str(raw_wine_id)]
+                quantity = int(payload.get("quantity", quantity) or quantity)
+            else:
+                wine_ids = [agent_event.message]
+
+        trigger_ev = WineSoldEvent(wine_ids=wine_ids, quantity=quantity)
+    else:
+        trigger_ev = AnalysisRunEvent(agent_name="orchestrator", analysis_id=uuid.uuid4().hex)
+
+    return {
+        "trigger_event": trigger_ev,
+        "router_iterations": 0,
+        "next_node": None,
+        "workflow_phase": None,
+        "analysis_query": None,
+        "sales_query": None,
+        "market_analysis_query": None,
+        "validated_analysis": None,
+    }
+
+
+async def run_once(agent_event: AgentEvent) -> str:
     """
     Opens a DB session, resolves the demo user, and runs the orchestrator.
     Publishes start/end events to the event_bus so the SSE stream shows activity.
@@ -114,14 +149,14 @@ async def run_once(trigger: str) -> str:
             AgentEvent(
                 source="orchestrator",
                 type="action",
-                message=f"Triggered: {trigger}",
+                message=f"Triggered: {agent_event.type}",
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
         )
 
         try:
             # Get or create session (checkpoint recovery happens here)
-            thread_id, session, resuming = await _get_or_create_session(db, user_id, trigger)
+            thread_id, session, resuming = await _get_or_create_session(db, user_id, f"Triggered: {agent_event.type}")
 
             if resuming:
                 await event_bus.publish(
@@ -135,37 +170,24 @@ async def run_once(trigger: str) -> str:
                 logger.info(f"Resuming orchestrator session {thread_id} for user {user_id}")
 
             async with get_checkpointer() as checkpointer:
-                agent = create_orchestrator(user_id, checkpointer=checkpointer)
+                cellar_repo = CellarRepository(db)
+                from uuid import UUID
+                agent = Orchestrator(cellar_repo=cellar_repo, user_id=UUID(user_id), checkpointer=checkpointer).graph
                 config = {"configurable": {"thread_id": thread_id}}
                 final_message = ""
 
                 # If resuming, don't send a new message; LangGraph will resume from checkpoint
-                input_data = None if resuming else {"messages": [HumanMessage(content=trigger)]}
+                input_data = _build_graph_input(agent_event)
 
                 async for event in agent.astream_events(
                     input_data,
                     config=config,
                     version="v2",
                 ):
-                    await _handle_stream_event(event)
+                    pass  # We removed _handle_stream_event logging since we emit manually in the orchestrator nodes now
 
-                    # Capture final orchestrator message — on_chat_model_end fires for
-                    # every LLM generation; the last text response (no tool_calls) is the answer
-                    if event.get("event") == "on_chat_model_end":
-                        output = event.get("data", {}).get("output")
-                        if (
-                            isinstance(output, AIMessage)
-                            and output.content
-                            and not output.tool_calls
-                        ):
-                            content = output.content
-                            # Gemini may return a list of content blocks; extract text
-                            if isinstance(content, list):
-                                content = " ".join(
-                                    block.get("text", "") if isinstance(block, dict) else str(block)
-                                    for block in content
-                                )
-                            final_message = content
+                final_state = await agent.aget_state(config)
+                final_message = final_state.values.get("validated_analysis", "Workflow completed.")
 
                 # Mark session as completed
                 await _update_session_status(db, session, RunSessionStatus.COMPLETED)
@@ -214,81 +236,6 @@ async def run_once(trigger: str) -> str:
             return error_msg
 
 
-def _extract_output(output) -> str:
-    """
-    Safely extract a string from a tool output.
-    At the orchestrator level, on_tool_end delivers a ToolMessage object
-    (not a plain string) when subagent-tools return. Extract .content if needed.
-    """
-    if hasattr(output, "content"):
-        return str(output.content)
-    if isinstance(output, str):
-        return output
-    return str(output)
-
-
-async def _handle_stream_event(event: dict) -> None:
-    """
-    Handles orchestrator-level stream events.
-
-    The subagents publish their own tool-level events directly to event_bus.
-    At the orchestrator level we only see on_tool_start/end for the 4 subagent-tools
-    (run_inventory_audit, run_sales_analysis, run_purchase_agent, run_menu_generator),
-    and on_chat_model_start when the orchestrator LLM is reasoning about delegation.
-    """
-    kind = event.get("event")
-    timestamp = datetime.now(timezone.utc).isoformat()
-
-    if kind == "on_chat_model_start":
-        # Only emit thought when the orchestrator is deciding — identified by having
-        # no active subagent tool in the chain (metadata langgraph_node == "agent"
-        # and no tool name in tags). Simplest reliable check: metadata check.
-        metadata = event.get("metadata", {})
-        if metadata.get("langgraph_node") == "agent" and not metadata.get("langgraph_step", 0) == 0:
-            await event_bus.publish(
-                AgentEvent(
-                    source="orchestrator",
-                    type="thought",
-                    message="Deciding which subagent to call...",
-                    timestamp=timestamp,
-                )
-            )
-
-    elif kind == "on_tool_start":
-        tool_name = event.get("name", "unknown_tool")
-        # Only emit for the 4 top-level subagent-tools; subagents publish their own events
-        if tool_name not in _SUBAGENT_TOOLS:
-            return
-        tool_input = event.get("data", {}).get("input", {})
-        if isinstance(tool_input, dict) and "query" in tool_input:
-            tool_input = tool_input["query"]
-        await event_bus.publish(
-            AgentEvent(
-                source="orchestrator",
-                type="action",
-                message=f"Delegating to {tool_name}: {tool_input}",
-                timestamp=timestamp,
-            )
-        )
-
-    elif kind == "on_tool_end":
-        tool_name = event.get("name", "unknown_tool")
-        # Only emit for the 4 top-level subagent-tools
-        if tool_name not in _SUBAGENT_TOOLS:
-            return
-        raw_output = event.get("data", {}).get("output", "")
-        output = _extract_output(raw_output)
-        if len(output) > 300:
-            output = output[:300] + "..."
-        await event_bus.publish(
-            AgentEvent(
-                source="orchestrator",
-                type="observation",
-                message=f"{tool_name} completed: {output}",
-                timestamp=timestamp,
-            )
-        )
-
 
 async def run_event_listener() -> None:
     """
@@ -314,8 +261,7 @@ async def run_event_listener() -> None:
 
                 if agent_event.type == "wine_sold":
                     logger.info(f"Agent runner: received wine_sold event — {agent_event.message}")
-                    trigger = f"A wine was sold: {agent_event.message}. Analyze the cellar and take appropriate action."
-                    await run_once(trigger)
+                    await run_once(agent_event)
 
         except Exception as e:
             logger.error(f"Agent runner event listener error: {e}", exc_info=True)

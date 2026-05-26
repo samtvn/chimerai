@@ -10,7 +10,7 @@ from apps.api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
 from langchain.agents import create_agent
 from pydantic import BaseModel
 
-from .tools import make_inventory_tools
+# from ..tools import make_inventory_tools
 
 INVENTORY_AUDIT_SYSTEM_PROMPT = """You are the Inventory Audit agent for Chimerai, a restaurant sommelier system.
 
@@ -43,13 +43,13 @@ class InventoryAuditResult(BaseModel):
     diversity_gaps: list[str]
 
 
-def create_inventory_audit_agent(user_id: str):
-    tools = make_inventory_tools(user_id)
-    return create_agent(
-        model=gemini_flash_3_1_lite,
-        tools=tools,
-        system_prompt=INVENTORY_AUDIT_SYSTEM_PROMPT,
-    )
+# def create_inventory_audit_agent(user_id: str):
+#     tools = make_inventory_tools(user_id)
+#     return create_agent(
+#         model=gemini_flash_3_1_lite,
+#         tools=tools,
+#         system_prompt=INVENTORY_AUDIT_SYSTEM_PROMPT,
+#     )
 
 
 def _parse_cellar_overview_output(text: str) -> dict:
@@ -134,30 +134,30 @@ def _parse_cellar_overview_output(text: str) -> dict:
 async def run_inventory_audit(user_id: str, query: str) -> InventoryAuditResult:
     """
     Delegates to the Inventory Audit subagent.
-    
+
     This is a hybrid approach:
     1. Call get_cellar_overview directly to get accurate structured data
     2. Run the agent for reasoning/analysis on that data
     3. Combine both into a complete InventoryAuditResult
     """
     from .tools import make_inventory_tools
-    
+
     # Step 1: Get the raw cellar data directly from the tool
     tools = make_inventory_tools(user_id)
     tool_map = {t.name: t for t in tools}
     get_cellar_overview_tool = tool_map["get_cellar_overview"]
-    
+
     overview_text = await get_cellar_overview_tool.ainvoke({})
-    
+
     # Parse the overview into structured counts
     parsed_data = _parse_cellar_overview_output(overview_text)
-    
+
     # Step 2: Run the agent for reasoning/summary (optional, for insights)
     agent = create_inventory_audit_agent(user_id)
-    
+
     # Provide the overview data to the agent for analysis
     enriched_query = f"{query}\n\nCellar Overview:\n{overview_text}"
-    
+
     summary_text = await run_subagent(
         agent=agent,
         query=enriched_query,
@@ -165,10 +165,10 @@ async def run_inventory_audit(user_id: str, query: str) -> InventoryAuditResult:
         thought_message="Analyzing cellar state...",
         thread_id=f"inventory-audit-{user_id}",
     )
-    
+
     # Extract summary from agent response
     summary = summary_text.strip() if summary_text else "Cellar analysis complete."
-    
+
     # Build the final structured result
     result = InventoryAuditResult(
         summary=summary,
@@ -180,6 +180,5 @@ async def run_inventory_audit(user_id: str, query: str) -> InventoryAuditResult:
         has_low_stock=len(parsed_data["low_stock_wines"]) > 0,
         diversity_gaps=parsed_data["diversity_gaps"],
     )
-    
-    return result
 
+    return result

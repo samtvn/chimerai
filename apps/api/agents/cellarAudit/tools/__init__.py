@@ -3,7 +3,7 @@ from langchain_core.tools import BaseTool
 from .all_wines import make_all_wines_tool
 from .cellar_overview import make_cellar_overview_tool
 from .low_stock import make_flag_low_stock_tool
-from .wine_by_filter import make_wines_by_field_tool
+from .wine_by_field import make_wines_by_field_tool
 from .wine_quantity import make_wine_count_tool
 
 __all__ = [
