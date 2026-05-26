@@ -183,16 +183,93 @@ class WineCardService:
         by_glass_mode = occasion != Occasion.BANQUET
         if service_count < 3:
             service_count = 3
+        if service_count < 4:
+            service_count = 4
         if service_count > 5:
             service_count = 5
 
-        selected_inventory = self._select_inventory_for_occasion(
-            inventory=inventory,
-            target_sections=profile["target_sections"],
-            max_per_section=profile["max_per_section"],
-            max_total=profile["max_total"],
-            min_quantity=profile["min_quantity"],
-        )
+        # For by-the-glass one-shot menus we want a very short list: one wine per service
+        # so cap total results to `service_count` and prefer at most one per section.
+        if by_glass_mode:
+            selected_inventory = self._select_inventory_for_occasion(
+                inventory=inventory,
+                target_sections=profile["target_sections"],
+                max_per_section=1,
+                max_total=service_count,
+                min_quantity=profile["min_quantity"],
+            )
+        else:
+            selected_inventory = self._select_inventory_for_occasion(
+                inventory=inventory,
+                target_sections=profile["target_sections"],
+                max_per_section=profile["max_per_section"],
+                max_total=profile["max_total"],
+                min_quantity=profile["min_quantity"],
+            )
+
+            # If by-the-glass mode, enforce a curated glass-first selection with
+            # limited slots per section and include style constraints (oaky / non-oak)
+            if by_glass_mode:
+                # limits for glass refs: 1 rose, 1 sparkling, 2 red, 2 white, 1 dessert
+                glass_limits = {"rose": 1, "sparkling": 1, "red": 2, "white": 2, "dessert": 1}
+
+                def is_oaky(item: InventoryItem) -> bool:
+                    text = " ".join([str(item.wine_name or ""), str(item.grape_variety or "")]).lower()
+                    oak_keys = ("oak", "oaky", "boisé", "boise", "barrel", "barrique")
+                    return any(k in text for k in oak_keys)
+
+                # candidates for glass: enough quantity and plausible glass pricing
+                glass_candidates = []
+                bottle_candidates = []
+                for it in selected_inventory:
+                    # treat dessert/fortified as dessert section when present
+                    sec = self._map_section(it.wine_color)
+                    # prefer items with at least 2 bottles for glass service
+                    if it.quantity >= 2:
+                        glass_candidates.append((sec, it))
+                    else:
+                        bottle_candidates.append((sec, it))
+
+                chosen_glass: list[InventoryItem] = []
+                chosen_ids = set()
+
+                # First try to satisfy explicit section quotas
+                for section, limit in glass_limits.items():
+                    cands = [it for sec, it in glass_candidates if sec == section and it.wine_id not in chosen_ids]
+                    # prefer non-oaky for white/rose, and include at least one oaky if strategy requests
+                    if section in ("white", "rose"):
+                        non_oaky = [it for it in cands if not is_oaky(it)]
+                        use = non_oaky[:limit] or cands[:limit]
+                    else:
+                        use = cands[:limit]
+                    for it in use:
+                        chosen_glass.append(it)
+                        chosen_ids.add(it.wine_id)
+
+                # Ensure a dessert sweet option if available
+                if not any(self._map_section(i.wine_color) == "dessert" for i in chosen_glass):
+                    dess = [it for sec, it in glass_candidates if sec == "dessert" and it.wine_id not in chosen_ids]
+                    if dess:
+                        chosen_glass.append(dess[0])
+                        chosen_ids.add(dess[0].wine_id)
+
+                # Fill remaining glass slots up to service_count if still below
+                remaining_slots = max(0, service_count - len(chosen_glass))
+                if remaining_slots > 0:
+                    rest = [it for sec, it in glass_candidates if it.wine_id not in chosen_ids]
+                    for it in rest[:remaining_slots]:
+                        chosen_glass.append(it)
+                        chosen_ids.add(it.wine_id)
+
+                # Prepare final selected inventory: chosen_glass first (marked as glass), then others
+                final_selected: list[InventoryItem] = []
+                for g in chosen_glass:
+                    final_selected.append(g)
+                for it in selected_inventory:
+                    if it.wine_id not in chosen_ids:
+                        final_selected.append(it)
+
+                selected_inventory = final_selected
 
         if not selected_inventory and inventory:
             selected_inventory = sorted(
@@ -386,6 +463,12 @@ class WineCardService:
             score += 1.0
         if season == Season.WINTER and section in {"red", "fortified", "dessert"}:
             score += 1.0
+        # Penalize heavy/full-bodied reds in summer to avoid overly warm-profile lists
+        if season == Season.SUMMER and section == "red":
+            heavy_keywords = ("full", "full-bodied", "full bodied", "heavy", "robust", "powerful", "bold")
+            text = "".join([str(item.wine_name or ""), " ", str(item.grape_variety or "")]).lower()
+            if any(k in text for k in heavy_keywords):
+                score -= 3.0
         return score
 
     def _compute_menu_max_total(self, candidate_count: int) -> int:
@@ -446,7 +529,12 @@ class WineCardService:
             if idx > 2000:
                 break
 
+        # Enforce season-specific caps: limit rosé exposure in winter to 2-3 refs
+        if season == Season.WINTER and "rose" in targets:
+            targets["rose"] = min(targets["rose"], 3)
+
         return targets
+
 
     def _select_inventory_for_season(
         self,
@@ -517,32 +605,45 @@ class WineCardService:
         restaurant_name: str,
     ) -> MenuExportResult:
         menu_items: list[MenuItem] = []
-
+        # Split inventory into by-the-glass candidates (front) and bottle-only (back)
+        glass_items: list[MenuItem] = []
+        bottle_items: list[MenuItem] = []
         for item in inventory:
             pricing = calculate_restaurant_price_ttc(
                 item.purchase_price_ht,
                 vat_country=vat_country,
             )
             section = self._map_section(item.wine_color)
-            menu_items.append(
-                MenuItem(
-                    section=section,
-                    vat_country=pricing.vat_country,
-                    vat_rate=pricing.vat_rate,
-                    wine_id=item.wine_id,
-                    producer=item.producer,
-                    wine_name=item.wine_name,
-                    vintage=item.vintage,
-                    region=item.region,
-                    appellation=item.appellation,
-                    country=item.country,
-                    quantity=item.quantity,
-                    purchase_price_ht=item.purchase_price_ht,
-                    avg_market_price=item.avg_market_price,
-                    selling_price_ttc=pricing.selling_price_ttc,
-                    glass_price_ttc=pricing.glass_price_ttc,
-                )
+            menu_item = MenuItem(
+                section=section,
+                vat_country=pricing.vat_country,
+                vat_rate=pricing.vat_rate,
+                wine_id=item.wine_id,
+                producer=item.producer,
+                wine_name=item.wine_name,
+                vintage=item.vintage,
+                region=item.region,
+                appellation=item.appellation,
+                country=item.country,
+                quantity=item.quantity,
+                purchase_price_ht=item.purchase_price_ht,
+                avg_market_price=item.avg_market_price,
+                selling_price_ttc=pricing.selling_price_ttc,
+                glass_price_ttc=pricing.glass_price_ttc,
+                display_mode="both",
             )
+
+            # Determine if this should be presented as glass-first candidate.
+            # Heuristic: enough stock for glass service and glass price sensible.
+            if item.quantity >= 2 and pricing.glass_price_ttc is not None:
+                menu_item.display_mode = "glass"
+                glass_items.append(menu_item)
+            else:
+                menu_item.display_mode = "bottle"
+                bottle_items.append(menu_item)
+
+        # Final ordering: glass-first then bottle
+        menu_items = glass_items + bottle_items
 
         menu_items.sort(key=lambda m: (self._section_rank(m.section), m.producer, m.wine_name))
         markdown = self._build_editable_menu_markdown(
@@ -741,8 +842,12 @@ class WineCardService:
                 location = " / ".join(part for part in location_parts if part) or "—"
                 vintage = item.vintage or "NV"
                 wine_name = f"{item.producer} — {item.wine_name}"
+                # Display rules: if item.display_mode == 'glass' show only glass price,
+                # if 'bottle' show only bottle price, else show both.
+                glass_cell = f"€{item.glass_price_ttc:.2f}" if item.display_mode in ("glass", "both") else ""
+                bottle_cell = f"€{item.selling_price_ttc:.2f}" if item.display_mode in ("bottle", "both") else ""
                 lines.append(
-                    f"| {wine_name} | {location} | {vintage} | €{item.glass_price_ttc:.2f} | €{item.selling_price_ttc:.2f} |"
+                    f"| {wine_name} | {location} | {vintage} | {glass_cell} | {bottle_cell} |"
                 )
             lines.append("")
 
@@ -813,6 +918,12 @@ class WineCardService:
                 "5) Keep legal footer lines for pricing/service and responsible alcohol consumption.",
                 "",
                 "Editable menu markdown is provided separately as source of available wines.",
+                "",
+                "Presentation constraints for this one-shot menu:",
+                "- List by-the-glass selections first, then bottle-only selections.",
+                "- By-the-glass limits: 1 sparkling, 1 rosé, up to 2 whites, up to 2 reds, include 1 dessert if possible.",
+                "- For by-the-glass choices prefer non-oaky whites/rosés; mark oaky options only as substitutions.",
+                "- For each suggested wine, provide a one-line justification (pairing + short tasting note) and indicate substitution if stock risk exists.",
             ]
         )
         return "\n".join(lines)

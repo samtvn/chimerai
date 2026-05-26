@@ -113,16 +113,19 @@
       </div>
       <div class="card bg-base-100 border border-primary-content">
         <div class="card-body p-4">
-          <div class="text-base-content/60 text-sm font-medium">Top Wine</div>
+          <div class="text-base-content/60 text-sm font-medium">
+            Most Stocked Wine
+          </div>
           <div class="mt-1">
             <span class="text-lg font-bold leading-tight"
-              >{summary?.top_wines?.[0]?.name ?? "—"}</span
+              >{summary?.top_wines?.[0]?.name ?? "No wine in stock"}</span
             >
           </div>
           <div
             class="text-base-content/50 text-xs mt-1 flex items-center gap-1"
           >
-            <TrendingUp size="12" />{summary?.top_wines?.[0]?.bottles ?? 0} bottles
+            <TrendingUp size="12" />{summary?.top_wines?.[0]?.bottles ?? 0}
+            bottles in cellar
           </div>
         </div>
       </div>

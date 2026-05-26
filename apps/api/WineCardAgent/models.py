@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -63,6 +64,7 @@ class PricingResult(BaseModel):
 
 class MenuItem(BaseModel):
     section: str
+    display_mode: Literal["glass", "bottle", "both"] = "both"
     vat_country: VatCountry
     vat_rate: float = Field(ge=0)
     wine_id: int
