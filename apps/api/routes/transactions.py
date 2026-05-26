@@ -43,11 +43,11 @@ async def list_transactions(
     user_id = await get_demo_user_id(db)
     if type:
         if type == TransactionType.PURCHASE:
-            txns = await TransactionRepository(db, True).get_user_purchases(user_id, limit)
+            txns = await TransactionRepository(db, True).get_user_purchases(user_id, limit, offset)
         else:
-            txns = await TransactionRepository(db, True).get_user_sales(user_id, limit)
+            txns = await TransactionRepository(db, True).get_user_sales(user_id, limit, offset)
     else:
-        txns = await TransactionRepository(db, True).get_by_user_id(user_id, limit)
+        txns = await TransactionRepository(db, True).get_by_user_id(user_id, limit, offset)
 
     result = []
     for txn in txns:

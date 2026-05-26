@@ -19,13 +19,14 @@ class TransactionRepository(BaseRepository[Transaction]):
         """
         super().__init__(session, read_only)
 
-    async def get_by_user_id(self, user_id: UUID, limit: int = 100) -> List[Transaction]:
+    async def get_by_user_id(self, user_id: UUID, limit: int = 100, offset: int = 0) -> List[Transaction]:
         """Get all transactions for a user"""
         result = await self.session.execute(
             select(Transaction)
             .where(Transaction.user_id == user_id)
             .order_by(Transaction.transaction_date.desc())
             .limit(limit)
+            .offset(offset)
         )
         return result.scalars().all()
 
@@ -41,7 +42,7 @@ class TransactionRepository(BaseRepository[Transaction]):
         )
         return result.scalars().all()
 
-    async def get_user_purchases(self, user_id: UUID, limit: int = 100) -> List[Transaction]:
+    async def get_user_purchases(self, user_id: UUID, limit: int = 100, offset: int = 0) -> List[Transaction]:
         """Get all purchases for a user"""
         result = await self.session.execute(
             select(Transaction)
@@ -50,15 +51,17 @@ class TransactionRepository(BaseRepository[Transaction]):
             )
             .order_by(Transaction.transaction_date.desc())
             .limit(limit)
+            .offset(offset)
         )
         return result.scalars().all()
 
-    async def get_user_sales(self, user_id: UUID, limit: int = 100) -> List[Transaction]:
+    async def get_user_sales(self, user_id: UUID, limit: int = 100, offset: int = 0) -> List[Transaction]:
         """Get all sales for a user"""
         result = await self.session.execute(
             select(Transaction)
             .where(and_(Transaction.user_id == user_id, Transaction.type == TransactionType.SALE))
             .order_by(Transaction.transaction_date.desc())
             .limit(limit)
+            .offset(offset)
         )
         return result.scalars().all()

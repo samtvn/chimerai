@@ -22,19 +22,21 @@
   let showDeleteModal = $state(false);
   let editingTransaction = $state<Transaction | null>(null);
   let error = $state("");
+  let hasMore = $state(true);
+  let loadingMore = $state(false);
 
   let addForm = $state({
     wine_id: 0,
     wineSearch: "",
     quantity: 1,
-    purchase_price: 0,
+    price: 0,
     type: "purchase" as "purchase" | "sale",
     date: new Date().toISOString().slice(0, 16),
   });
 
   let editForm = $state({
     quantity: 1,
-    purchase_price: 0,
+    price: 0,
     type: "purchase" as "purchase" | "sale",
     date: "",
   });
@@ -59,15 +61,37 @@
 
   async function loadData() {
     loading = true;
+    transactions = [];
+    hasMore = true;
     try {
       const txnRes = await api.transactions.list({
         type: filterType || undefined,
+        limit: 50,
+        offset: 0,
       });
       transactions = txnRes.transactions;
+      hasMore = txnRes.transactions.length === 50;
     } catch (e: any) {
       error = e.message;
     }
     loading = false;
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    loadingMore = true;
+    try {
+      const txnRes = await api.transactions.list({
+        type: filterType || undefined,
+        limit: 50,
+        offset: transactions.length,
+      });
+      transactions = [...transactions, ...txnRes.transactions];
+      hasMore = txnRes.transactions.length === 50;
+    } catch (e: any) {
+      error = e.message;
+    }
+    loadingMore = false;
   }
 
   function invalidateAll() {
@@ -76,12 +100,26 @@
 
   async function createTransaction() {
     try {
+      // Only send date if user explicitly changed it from default
+      // Otherwise, let the server set the current timestamp
+      let transactionDate: string | undefined = undefined;
+      if (addForm.date) {
+        const formDate = new Date(addForm.date);
+        const now = new Date();
+        const diffMinutes = Math.abs(now.getTime() - formDate.getTime()) / (1000 * 60);
+        
+        // If the selected date differs by more than 2 minutes from now, user modified it
+        if (diffMinutes > 2) {
+          transactionDate = formDate.toISOString();
+        }
+      }
+      
       await api.transactions.create({
         wine_id: addForm.wine_id,
         quantity: addForm.quantity,
-        purchase_price: addForm.purchase_price || undefined,
+        price: addForm.price || undefined,
         type: addForm.type,
-        date: addForm.date ? new Date(addForm.date).toISOString() : undefined,
+        date: transactionDate,
       });
       showAddModal = false;
       resetAddForm();
@@ -96,7 +134,7 @@
     try {
       await api.transactions.update(editingTransaction.id, {
         quantity: editForm.quantity,
-        purchase_price: editForm.purchase_price || undefined,
+        price: editForm.price || undefined,
         type: editForm.type,
         date: editForm.date || undefined,
       });
@@ -122,7 +160,7 @@
       wine_id: 0,
       wineSearch: "",
       quantity: 1,
-      purchase_price: 0,
+      price: 0,
       type: "purchase",
       date: new Date().toISOString().slice(0, 16),
     };
@@ -142,7 +180,7 @@
     editingTransaction = txn;
     editForm = {
       quantity: txn.quantity,
-      purchase_price: txn.purchase_price || 0,
+      price: txn.price || 0,
       type: txn.type,
       date: txn.date || "",
     };
@@ -260,8 +298,8 @@
                   ? "s"
                   : ""}
               </div>
-              {#if txn.purchase_price}<div class="text-xs text-base-content/50">
-                  €{txn.purchase_price.toFixed(2)}/unit
+              {#if txn.price}<div class="text-xs text-base-content/50">
+                  €{txn.price.toFixed(2)}/unit
                 </div>{/if}
               <div class="text-xs text-base-content/30">
                 {formatDate(txn.date)}
@@ -283,6 +321,24 @@
         </div>
       {/each}
     </div>
+    
+    <!-- Load More / Infinite Scroll -->
+    {#if hasMore}
+      <div class="flex justify-center py-4">
+        <button
+          class="btn btn-outline btn-sm"
+          onclick={loadMore}
+          disabled={loadingMore}
+        >
+          {#if loadingMore}
+            <span class="loading loading-spinner loading-sm"></span>
+            Loading more...
+          {:else}
+            Load more transactions
+          {/if}
+        </button>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -318,7 +374,7 @@
                   onclick={() => {
                     addForm.wine_id = sr.id;
                     addForm.wineSearch = `${sr.name} ${sr.vintage || ""}`;
-                    addForm.purchase_price = sr.market_price || 0;
+                    addForm.price = sr.market_price || 0;
                     wineSearchResults = [];
                   }}
                 >
@@ -365,7 +421,7 @@
             type="number"
             id="price"
             class="input input-bordered"
-            bind:value={addForm.purchase_price}
+            bind:value={addForm.price}
             step="0.01"
             min="0"
           />
@@ -434,7 +490,7 @@
           ><input
             type="number"
             class="input input-bordered"
-            bind:value={editForm.purchase_price}
+            bind:value={editForm.price}
             step="0.01"
             min="0"
           />

@@ -38,7 +38,7 @@
     wine_id: 0,
     wineSearch: "",
     quantity: 1,
-    purchase_price: 0,
+    price: 0,
     type: "purchase" as "purchase" | "sale",
     date: new Date().toISOString().slice(0, 16),
   });
@@ -97,7 +97,7 @@
       await api.transactions.create({
         wine_id: addForm.wine_id,
         quantity: addForm.quantity,
-        purchase_price: addForm.purchase_price || undefined,
+        price: addForm.price || undefined,
         type: addForm.type,
         date: addForm.date ? new Date(addForm.date).toISOString() : undefined,
       });
@@ -114,7 +114,7 @@
       wine_id: 0,
       wineSearch: "",
       quantity: 1,
-      purchase_price: 0,
+      price: 0,
       type: "purchase",
       date: new Date().toISOString().slice(0, 16),
     };
@@ -129,7 +129,7 @@
       const wine = wines.find((w) => w.id === wineId);
       if (wine) {
         addForm.wineSearch = `${wine.name} ${wine.vintage || ""}`;
-        addForm.purchase_price = wine.market_price || 0;
+        addForm.price = wine.market_price || 0;
       }
     }
     showAddModal = true;
@@ -431,7 +431,9 @@
     <!-- Detail Panel -->
     {#if selectedWine}
       <div class="lg:col-span-1">
-        <div class="card bg-base-100 border border-primary-content sticky top-20">
+        <div
+          class="card bg-base-100 border border-primary-content sticky top-20"
+        >
           <div class="card-body p-4">
             <div class="flex items-start justify-between">
               <h3 class="font-bold text-lg">{selectedWine.name}</h3>
@@ -545,7 +547,7 @@
                   onclick={() => {
                     addForm.wine_id = sr.id;
                     addForm.wineSearch = `${sr.name} ${sr.vintage || ""}`;
-                    addForm.purchase_price = sr.market_price || 0;
+                    addForm.price = sr.market_price || 0;
                     wineSearchResults = [];
                   }}
                 >
@@ -589,7 +591,7 @@
           ><input
             type="number"
             class="input input-bordered"
-            bind:value={addForm.purchase_price}
+            bind:value={addForm.price}
             step="0.01"
             min="0"
           />
@@ -675,7 +677,8 @@
     background: #fff5dc;
     color: #8a6b1f;
     border-color: #e4ce93;
-    box-shadow: inset 0 0 0 1px rgb(255 236 179 / 0.85),
+    box-shadow:
+      inset 0 0 0 1px rgb(255 236 179 / 0.85),
       0 0 0 1px rgb(214 186 112 / 0.35);
   }
 

@@ -31,7 +31,9 @@ async def seed_transactions():
 
         transactions = []
         inventory: dict[int, int] = {}
-        base_date = datetime.now(timezone.utc) - timedelta(days=90)
+        # Start from 200 days ago and work forward to today
+        # This ensures all seeded transactions are in the past
+        base_date = datetime.now(timezone.utc) - timedelta(days=200)
 
         target_transactions = 200
         target_cellar = 60

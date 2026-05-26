@@ -38,7 +38,7 @@ export interface Transaction {
   wine_region: string;
   wine_color: string;
   quantity: number;
-  purchase_price: number | null;
+  price: number | null;
   type: "purchase" | "sale";
   date: string | null;
 }
@@ -194,15 +194,17 @@ export const api = {
   },
 
   transactions: {
-    list: (params?: { type?: "purchase" | "sale" }) => {
+    list: (params?: { type?: "purchase" | "sale"; limit?: number; offset?: number }) => {
       const q = new URLSearchParams();
       if (params?.type) q.set("type", params.type);
+      if (params?.limit) q.set("limit", String(params.limit));
+      if (params?.offset) q.set("offset", String(params.offset));
       return fetchApi<{ transactions: Transaction[] }>(`/transactions?${q}`);
     },
     create: (data: {
       wine_id: number;
       quantity: number;
-      purchase_price?: number;
+      price?: number;
       type: "purchase" | "sale";
       date?: string;
     }) =>
@@ -214,7 +216,7 @@ export const api = {
       id: string,
       data: {
         quantity?: number;
-        purchase_price?: number;
+        price?: number;
         type?: "purchase" | "sale";
         date?: string;
       },
