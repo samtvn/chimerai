@@ -141,6 +141,6 @@
         {/each}
       </div>
     {/if}
-    <div class="lg:col-span-2"><AgentActivityStream /></div>
+    <AgentActivityStream />
   {/if}
 </div>

@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { Brain, Play, Eye, BadgeCheck, Bell, Bot, RefreshCw } from "@lucide/svelte";
+  import {
+    Brain,
+    Play,
+    Eye,
+    BadgeCheck,
+    Bell,
+    Bot,
+    RefreshCw,
+  } from "@lucide/svelte";
   import agentStore from "$lib/stores/agent.svelte";
 
   let autoScroll = $state(true);
@@ -58,7 +66,7 @@
   }
 </script>
 
-<div class="card bg-base-100 border border-primary-content h-full">
+<div class="card bg-base-100 border border-primary-content">
   <div class="card-body p-3">
     <div class="flex items-center justify-between mb-2">
       <h3 class="card-title text-sm flex items-center gap-2">
@@ -107,7 +115,8 @@
 
     <div
       bind:this={containerEl}
-      class="flex flex-col gap-1.5 overflow-y-auto max-h-80 scroll-smooth"
+      class="flex flex-col gap-1.5 overflow-y-auto scroll-smooth"
+      style="max-height: calc(100svh - 400px)"
     >
       {#if agentStore.events.length === 0}
         <div

@@ -15,7 +15,6 @@ from apps.api.agents.Orchestrator.orchestrator_router import orchestrator_router
 from apps.api.events.bus import AgentEvent, event_bus
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.dependencies import get_demo_user_id
-from apps.api.database.repositories.recommendations_repository import RecommendationRepository
 from apps.api.database.repositories.cellar_repository import CellarRepository
 from apps.api.WineCardAgent.service import WineCardService
 from apps.api.WineCardAgent.trigger_service import WineCardTriggerService
@@ -120,6 +119,7 @@ class Orchestrator:
                 "action",
                 f"Starting market analysis for user {self.user_id}.",
             )
+            market_analysis_started_at = datetime.now(timezone.utc)
             query = state.get("analysis_query") or ""
             run_market = make_market_research_tool(str(self.user_id))
             result = await run_market.ainvoke({"query": query})
@@ -130,35 +130,36 @@ class Orchestrator:
         except Exception as e:
             await self._publish_event("alert", f"Error: {e}")
             return {'error': str(e)}
-        return {'market_analysis': result}
+        return {
+            'market_analysis': result,
+            'market_analysis_started_at': market_analysis_started_at.isoformat(),
+        }
 
     async def _persist_recommendations(self, state: OrchestratorState) -> dict:
-        # Try to persist market analysis results if they are structured objects
         saved = 0
         try:
             await self._publish_event(
                 "action",
                 "Persisting validated recommendations.",
             )
-            results = state.get("market_analysis") or []
-            # If results is not a list of structured objects, skip DB persistence
-            if isinstance(results, list) and results:
-                async with AsyncSessionLocal() as session:
-                    user_id = self.user_id or await get_demo_user_id(session)
-                    repo = RecommendationRepository(session, read_only=False)
-                    for item in results:
-                        wine_id = getattr(item, "wine_id", None) or item.get("wine_id") if isinstance(item, dict) else None
-                        quantity = getattr(item, "quantity", 1) if hasattr(item, "quantity") else (item.get("quantity") if isinstance(item, dict) else 1)
-                        if wine_id:
-                            await repo.create(
-                                user_id=user_id,
-                                wine_id=wine_id,
-                                quantity=quantity,
-                                market_price=getattr(item, "price_per_bottle", None) or (item.get("price_per_bottle") if isinstance(item, dict) else None),
-                                priority_score=getattr(item, "fit_score", None) or (item.get("fit_score") if isinstance(item, dict) else None),
-                                recommendation_reason=(getattr(item, "fit_notes", None) or (item.get("fit_notes") if isinstance(item, dict) else None)) or "Persisted by orchestrator",
-                            )
-                            saved += 1
+            # Recommendations are already written to the DB by the save_recommendation
+            # tool inside the market research subagent. We just count how many were
+            # created during this run by comparing against the run start timestamp.
+            started_at_raw = state.get("market_analysis_started_at")
+            async with AsyncSessionLocal() as session:
+                from sqlalchemy import select, func
+                from apps.api.database.models.recommendations import Recommendation as RecommendationModel
+                user_id = self.user_id or await get_demo_user_id(session)
+                if started_at_raw:
+                    from datetime import datetime, timezone
+                    started_at = datetime.fromisoformat(started_at_raw)
+                    result = await session.execute(
+                        select(func.count(RecommendationModel.id)).where(
+                            RecommendationModel.user_id == user_id,
+                            RecommendationModel.created_at >= started_at,
+                        )
+                    )
+                    saved = int(result.scalar() or 0)
             await self._publish_event(
                 "final",
                 f"Persisted {saved} recommendation(s).",

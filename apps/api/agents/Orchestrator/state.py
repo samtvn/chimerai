@@ -18,3 +18,5 @@ class OrchestratorState(TypedDict, total=False):
     next_node: Optional[str]
     workflow_phase: Optional[str]
     router_iterations: int
+    market_analysis_started_at: Optional[str]
+    recommendations_saved: Optional[int]

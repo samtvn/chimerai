@@ -89,9 +89,6 @@
                   </div>
                 </div>
               </div>
-              <span class="badge {priorityBadge(rec.priority_score)} badge-sm shrink-0">
-                Priority {rec.priority_score.toFixed(1)}
-              </span>
             </div>
 
             <p class="text-sm text-base-content/80 leading-relaxed">
@@ -100,13 +97,19 @@
 
             <div class="flex flex-wrap gap-2 text-xs text-base-content/60">
               <span class="bg-base-200 rounded-md px-2 py-1">
-                Quantity: <span class="font-medium text-base-content">{rec.quantity}</span>
+                Quantity: <span class="font-medium text-base-content"
+                  >{rec.quantity}</span
+                >
               </span>
               <span class="bg-base-200 rounded-md px-2 py-1">
-                Market Price: <span class="font-medium text-base-content">€{rec.market_price.toFixed(2)}</span>
+                Market Price: <span class="font-medium text-base-content"
+                  >€{rec.market_price.toFixed(2)}</span
+                >
               </span>
               <span class="bg-base-200 rounded-md px-2 py-1">
-                Total: <span class="font-medium text-base-content">€{(rec.market_price * rec.quantity).toFixed(2)}</span>
+                Total: <span class="font-medium text-base-content"
+                  >€{(rec.market_price * rec.quantity).toFixed(2)}</span
+                >
               </span>
               <span class="bg-base-200 rounded-md px-2 py-1">
                 {formatDate(rec.created_at)}
