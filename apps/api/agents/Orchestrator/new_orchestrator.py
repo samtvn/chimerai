@@ -16,7 +16,11 @@ from apps.api.agents.event_bus import AgentEvent, event_bus
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.dependencies import get_demo_user_id
 from apps.api.database.repositories.recommendations_repository import RecommendationRepository
-
+from apps.api.agents.WineCellarAgent.service import WineCellarAnalysisService
+from apps.api.database.repositories.cellar_repository import CellarRepository
+from apps.api.WineCardAgent.service import WineCardService
+from apps.api.WineCardAgent.trigger_service import WineCardTriggerService
+from apps.api.WineCardAgent.models import TriggerReason, Season, VatCountry
 
 class Orchestrator:
     """Orchestrator for wine cellar analysis and market research workflows"""
@@ -53,6 +57,7 @@ class Orchestrator:
         workflow.add_conditional_edges("event_listener", self.event_analysis, {"orchestrator_router": "orchestrator_router",
                                                                                "update_menu": "update_menu"})
         workflow.add_edge("persist_recommendations", END)
+        workflow.add_edge("update_menu", END)
 
         return workflow.compile(checkpointer=checkpointer)
 
@@ -92,7 +97,8 @@ class Orchestrator:
                 f"Starting cellar analysis for user {self.user_id}.",
             )
             query = state.get("analysis_query") or ""
-            analysis = await run_inventory_audit(str(self.user_id), query)
+            async with AsyncSessionLocal() as session:
+                analysis = await WineCellarAnalysisService.analyze_cellar(CellarRepository(session))
             await self._publish_event(
                 "observation",
                 "Cellar analysis completed successfully.",
@@ -173,8 +179,7 @@ class Orchestrator:
             return {'error': str(e)}
         return {'sales_analysis': result}
 
-    async def _update_menu(self, state: OrchestratorState) -> dict:
-        return {}
+
 
 
     @staticmethod
@@ -186,6 +191,45 @@ class Orchestrator:
     def route(self, state: OrchestratorState) -> str:
         return state.get("next_node", "persist_recommendations")
 
-    def event_analysis(self, state: OrchestratorState) -> str:
-        # Default to the router for most events
-        return "orchestrator_router"
+    def event_analysis(self, state: OrchestratorState):
+        destinations = []
+        trigger_event = state.get("trigger_event")
+        event_type = trigger_event
+        if hasattr(trigger_event, "event_type"):
+            event_type = trigger_event.event_type
+
+        if event_type == "wine_sold":
+            destinations.append("update_menu")
+
+        if event_type in {"wine_sold", "cellar_analysis"}:
+            destinations.append("orchestrator_router")
+
+        return destinations or "orchestrator_router"
+
+
+    async def _update_menu(self, state: OrchestratorState) -> dict:
+        try:
+            reason = TriggerReason.WINE_SOLD
+
+            await self._publish_event("action", f"Running WineCard refresh ({reason.value}).")
+
+            report = await WineCardTriggerService.run_once(
+                reason=reason,
+                season=Season.WINTER,      # ou récupéré depuis state/config
+                vat_country=VatCountry.LU, # ou récupéré depuis state/config
+                min_stock_threshold=2,
+            )
+
+            await self._publish_event(
+                "observation",
+                f"WineCard regenerated. low_stock_count={report.low_stock_count}, "
+                f"refresh={report.should_refresh_menu}"
+            )
+
+            return {
+                "menu_update_report": report.model_dump(),
+            }
+
+        except Exception as e:
+            await self._publish_event("alert", f"WineCard update failed: {e}")
+            return {"error": str(e)}

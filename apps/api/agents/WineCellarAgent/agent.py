@@ -216,14 +216,78 @@ Rules for parameters:
 - Keep the recommendations practical and varied.
 """
 
+        def _validate_plan(data: Any) -> RecommendationPlan:
+            if hasattr(RecommendationPlan, "model_validate"):
+                return RecommendationPlan.model_validate(data)
+            return RecommendationPlan.parse_obj(data)
+
+        def _extract_json(text: str) -> str | None:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                return None
+            return text[start : end + 1]
+
         try:
             structured_llm = gemini_flash_3_1_lite.with_structured_output(RecommendationPlan)
             response = await structured_llm.ainvoke(prompt)
             state["recommendation_plan"] = response
             return state
         except Exception as e:
-            state["error"] = f"Recommendations generation failed: {str(e)}"
-            return state
+            last_error = str(e)
+
+        repair_prompt = (
+            f"""{prompt}
+
+Return ONLY valid JSON that matches this exact schema and includes all required fields.
+Do not include markdown, comments, or extra text.
+
+Schema:
+{{
+  "recommendations": [
+    {{
+      "title": "string",
+      "description": "string",
+      "criticality": "low|medium|high|critical",
+      "price_range": "string",
+      "quantity_to_buy": 1,
+      "parameters": [
+        {{
+          "aspect": "country|region|sub_region|price_range|alcohol_level|colour|tannin|acidity|sweetness|body|grape_variety|style|vintage|ageing_potential|food_pairing",
+          "target": "string",
+          "rationale": "string"
+        }}
+      ],
+      "suggested_action": "string",
+      "estimated_impact": "string"
+    }}
+  ]
+}}
+
+Previous error: {last_error}
+"""
+        )
+
+        for _ in range(2):
+            try:
+                message = HumanMessage(content=repair_prompt)
+                response = await gemini_flash_3_1_lite.ainvoke([message])
+                raw_text = response.content if hasattr(response, "content") else str(response)
+                json_text = _extract_json(raw_text)
+                if not json_text:
+                    raise ValueError("No JSON object found in model response")
+                data = json.loads(json_text)
+                state["recommendation_plan"] = _validate_plan(data)
+                return state
+            except Exception as e:
+                last_error = str(e)
+                repair_prompt = repair_prompt.rsplit("Previous error:", 1)[0] + f"Previous error: {last_error}\n"
+
+        # Fallback to a valid default plan instead of failing the workflow
+        state["recommendation_plan"] = RecommendationPlan(
+            recommendations=self._default_recommendations()
+        )
+        return state
 
     async def _format_output(self, state: WineCellarAgentState) -> WineCellarAgentState:
         """Format the final structured output"""

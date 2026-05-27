@@ -189,7 +189,7 @@ async def orchestrator_router(user_id: str, state: OrchestratorState) -> str:
     wine_ids = _wine_ids(event)
 
     # Auto-run full analysis when an analysis event is explicitly requested
-    if event_type in ("analysis", "analysis_run"):
+    if event_type in ("analysis", "analysis_run", "wine_sold") and state.get("cellar_analysis") is None:
         state["analysis_query"] = "Run a full cellar analysis because an analysis event was triggered."
         state["workflow_phase"] = "auto_analysis"
         state["next_node"] = "analyze_cellar"
