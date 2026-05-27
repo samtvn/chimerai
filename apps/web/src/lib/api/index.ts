@@ -150,7 +150,23 @@ export interface WineCardMenuAnalysis {
   missing_categories: string[];
   low_stock_warnings: string[];
   by_the_glass_suggestions: string[];
+  seasonal_inventory_guidance: string[];
   section_counts: Record<string, number>;
+}
+
+export interface CellarReferenceDeletionResult {
+  status: string;
+  wine_id: number;
+  summary: string;
+  replacement_suggestions: {
+    wine_id: number;
+    name: string;
+    producer: string;
+    vintage: string | null;
+    region: string | null;
+    color: string;
+    market_price: number | null;
+  }[];
 }
 
 export interface WineCardTriggerReport {
@@ -191,6 +207,10 @@ export const api = {
   cellar: {
     summary: () => fetchApi<CellarSummary>("/summary"),
     wines: () => fetchApi<{ wines: (Wine & { stock: number })[]; total: number }>("/cellar"),
+    deleteReference: (wineId: number) =>
+      fetchApi<CellarReferenceDeletionResult>(`/cellar/reference/${wineId}`, {
+        method: "DELETE",
+      }),
   },
 
   transactions: {

@@ -398,6 +398,14 @@
             <span class="text-base-content/70"> {analysis?.strategy.avoid.join(", ")}</span>
           </div>
           <div class="text-sm text-base-content/70">{analysis?.strategy.notes}</div>
+          {#if analysis && (analysis.seasonal_inventory_guidance?.length ?? 0) > 0}
+            <div class="mt-2 flex flex-col gap-2">
+              <div class="font-medium text-sm">Seasonal inventory guidance</div>
+              {#each analysis.seasonal_inventory_guidance ?? [] as item}
+                <div class="text-sm bg-base-200 rounded-md px-2 py-1">{item}</div>
+              {/each}
+            </div>
+          {/if}
           {#if analysis && analysis.low_stock_warnings.length > 0}
             <div class="mt-2 flex flex-col gap-2">
               <div class="font-medium text-sm flex items-center gap-2"><AlertTriangle size="14" /> Low stock</div>

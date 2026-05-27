@@ -11,8 +11,13 @@
     TrendingUp,
     ChevronRight,
     Minus,
+    Trash2,
   } from "@lucide/svelte";
-  import type { Wine as WineType, CellarSummary } from "$lib/api";
+  import type {
+    Wine as WineType,
+    CellarSummary,
+    CellarReferenceDeletionResult,
+  } from "$lib/api";
   import { api } from "$lib/api";
   import agentStore from "$lib/stores/agent.svelte";
   import { debounce } from "$lib/utils/debounce";
@@ -33,6 +38,10 @@
   let showFilters = $state(false);
   let showAddModal = $state(false);
   let error = $state("");
+  let success = $state("");
+  let pendingDeleteWine = $state<(WineType & { stock: number }) | null>(null);
+  let deletingReference = $state(false);
+  let deleteResult = $state<CellarReferenceDeletionResult | null>(null);
 
   let addForm = $state({
     wine_id: 0,
@@ -55,6 +64,9 @@
           api.wines.appellations(),
         ]);
       wines = cellarRes.wines;
+      if (selectedWine) {
+        selectedWine = cellarRes.wines.find((w) => w.id === selectedWine?.id) ?? null;
+      }
       summary = summaryRes;
       regions = regionRes.regions;
       colors = colorRes.colors;
@@ -94,18 +106,50 @@
 
   async function createTransaction() {
     try {
+      const txType = addForm.type;
       await api.transactions.create({
         wine_id: addForm.wine_id,
         quantity: addForm.quantity,
         price: addForm.price || undefined,
-        type: addForm.type,
+        type: txType,
         date: addForm.date ? new Date(addForm.date).toISOString() : undefined,
       });
       showAddModal = false;
       resetAddForm();
+      success = txType === "purchase" ? "Purchase recorded." : "Sale recorded.";
       invalidateAll();
     } catch (e: any) {
       error = e.message;
+    }
+  }
+
+  async function createRestockAlert(wine: WineType & { stock: number }) {
+    try {
+      await api.alerts.create({
+        message: `${wine.producer} — ${wine.name} ${wine.vintage || "NV"} is out of stock. Keep reference and schedule restock.`,
+        severity: "warning",
+        source_agent: "inventory_ui",
+      });
+      success = "Restock alert created.";
+      error = "";
+    } catch (e: any) {
+      error = e.message || "Failed to create restock alert.";
+    }
+  }
+
+  async function confirmDeleteReference() {
+    if (!pendingDeleteWine) return;
+    deletingReference = true;
+    error = "";
+    try {
+      deleteResult = await api.cellar.deleteReference(pendingDeleteWine.id);
+      success = "Wine reference deleted.";
+      pendingDeleteWine = null;
+      invalidateAll();
+    } catch (e: any) {
+      error = e.message || "Failed to delete wine reference.";
+    } finally {
+      deletingReference = false;
     }
   }
 
@@ -215,6 +259,14 @@
     <div class="alert alert-error">
       <span>{error}</span>
       <button class="btn btn-sm btn-ghost" onclick={() => (error = "")}
+        ><X size="14" /></button
+      >
+    </div>
+  {/if}
+  {#if success}
+    <div class="alert alert-success">
+      <span>{success}</span>
+      <button class="btn btn-sm btn-ghost" onclick={() => (success = "")}
         ><X size="14" /></button
       >
     </div>
@@ -506,9 +558,29 @@
               <button
                 class="btn btn-sm btn-error flex-1"
                 onclick={() => openAddModal("sale", selectedWine!.id)}
+                disabled={selectedWine.stock <= 0}
                 ><ArrowUpRight size="14" /> Sell</button
               >
             </div>
+            {#if selectedWine.stock <= 0}
+              <div class="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+                This reference is sold out. Keep it for future restock, or delete if no longer needed.
+              </div>
+              <div class="mt-2 grid grid-cols-1 gap-2">
+                <button
+                  class="btn btn-sm btn-warning"
+                  onclick={() => createRestockAlert(selectedWine!)}
+                >
+                  <Plus size="14" /> Keep Ref + Create Restock Alert
+                </button>
+                <button
+                  class="btn btn-sm btn-outline btn-error"
+                  onclick={() => (pendingDeleteWine = selectedWine)}
+                >
+                  <Trash2 size="14" /> Delete Reference
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
@@ -630,6 +702,57 @@
         resetAddForm();
       }}
     ></div>
+  </div>
+{/if}
+
+{#if pendingDeleteWine}
+  <div class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Delete wine reference?</h3>
+      <p class="text-sm text-base-content/70">
+        {pendingDeleteWine.producer} — {pendingDeleteWine.name} {pendingDeleteWine.vintage || "NV"}
+      </p>
+      <p class="text-sm mt-2">
+        This removes this wine from your cellar history and transactions. Use this only if the reference is permanently discontinued.
+      </p>
+      <div class="modal-action">
+        <button class="btn btn-ghost" onclick={() => (pendingDeleteWine = null)}>Cancel</button>
+        <button class="btn btn-error" onclick={confirmDeleteReference} disabled={deletingReference}>
+          {#if deletingReference}<span class="loading loading-spinner loading-xs"></span>{/if}
+          Delete Reference
+        </button>
+      </div>
+    </div>
+    <div class="modal-backdrop" onclick={() => (pendingDeleteWine = null)}></div>
+  </div>
+{/if}
+
+{#if deleteResult}
+  <div class="modal modal-open">
+    <div class="modal-box">
+      <h3 class="font-bold text-lg mb-2">Reference deletion summary</h3>
+      <p class="text-sm">{deleteResult.summary}</p>
+      {#if deleteResult.replacement_suggestions.length > 0}
+        <div class="mt-3">
+          <div class="font-medium text-sm mb-2">Similar replacement ideas</div>
+          <div class="flex flex-col gap-2">
+            {#each deleteResult.replacement_suggestions as suggestion}
+              <div class="rounded-md bg-base-200 p-2 text-sm">
+                <div class="font-medium">{suggestion.producer} — {suggestion.name} {suggestion.vintage || "NV"}</div>
+                <div class="text-base-content/60">
+                  {suggestion.region || "Unknown region"} · {suggestion.color}
+                  {#if suggestion.market_price} · €{suggestion.market_price.toFixed(0)}{/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+      <div class="modal-action">
+        <button class="btn btn-primary" onclick={() => (deleteResult = null)}>Close</button>
+      </div>
+    </div>
+    <div class="modal-backdrop" onclick={() => (deleteResult = null)}></div>
   </div>
 {/if}
 

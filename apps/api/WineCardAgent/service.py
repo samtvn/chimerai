@@ -793,6 +793,10 @@ class WineCardService:
             season,
             vat_country=vat_country,
         )
+        seasonal_inventory_guidance = self._build_seasonal_inventory_guidance(
+            selected_inventory,
+            season,
+        )
 
         summary = (
             f"Inventory has {total_candidates} unique references; selected {len(selected_inventory)} for current menu. "
@@ -809,12 +813,79 @@ class WineCardService:
             total_inventory_candidates=total_candidates,
             missing_categories=missing_categories,
             low_stock_warnings=low_stock_warnings,
+            seasonal_inventory_guidance=seasonal_inventory_guidance,
             cheap_wine_low_stock_alerts=cheap_low_stock_alerts,
             duplicate_vintage_alerts=duplicate_vintage_alerts,
             reprint_menu_recommended=reprint_menu_recommended,
             by_the_glass_suggestions=by_the_glass_suggestions,
             section_counts=dict(section_counts),
         )
+
+    def _build_seasonal_inventory_guidance(
+        self,
+        selected_inventory: list[InventoryItem],
+        season: Season,
+    ) -> list[str]:
+        """Generate short operator guidance from seasonal inventory composition."""
+        if not selected_inventory:
+            return [
+                f"{season.value.title()} menu has no selected wines yet. Re-run curation after inventory refresh."
+            ]
+
+        section_stock: Counter[str] = Counter()
+        section_refs: Counter[str] = Counter()
+        low_stock_refs: Counter[str] = Counter()
+        for item in selected_inventory:
+            section = self._map_section(item.wine_color)
+            section_stock[section] += item.quantity
+            section_refs[section] += 1
+            if item.quantity <= 2:
+                low_stock_refs[section] += 1
+
+        guidance: list[str] = []
+
+        rose_stock = section_stock.get("rose", 0)
+        rose_refs = section_refs.get("rose", 0)
+        if season in {Season.AUTUMN, Season.WINTER} and rose_stock <= 3:
+            guidance.append(
+                f"{season.value.title()} menu: rose stock is low ({rose_stock} bottles / {rose_refs} refs), which is normal for the season. Keep current stock, no urgent purchase."
+            )
+        elif season in {Season.SPRING, Season.SUMMER} and rose_stock <= 3:
+            guidance.append(
+                f"{season.value.title()} menu: rose stock is low ({rose_stock} bottles / {rose_refs} refs). Consider buying 1-2 versatile rose references."
+            )
+
+        red_stock = section_stock.get("red", 0)
+        if season == Season.WINTER and red_stock < 8:
+            guidance.append(
+                f"Winter service depends on reds, but current red stock is {red_stock} bottles. Replenish structured reds before the next reprint."
+            )
+
+        focus_sections_by_season = {
+            Season.SPRING: ["sparkling", "white", "rose"],
+            Season.SUMMER: ["sparkling", "white", "rose"],
+            Season.AUTUMN: ["white", "red"],
+            Season.WINTER: ["white", "red", "fortified", "dessert"],
+        }
+        section_labels = {
+            "sparkling": "sparkling",
+            "white": "white",
+            "rose": "rose",
+            "red": "red",
+            "dessert": "dessert",
+            "fortified": "fortified",
+        }
+        for section in focus_sections_by_season[season]:
+            if section_refs.get(section, 0) == 0:
+                guidance.append(
+                    f"{season.value.title()} menu is missing {section_labels[section]} references. Add at least one to improve balance."
+                )
+            elif low_stock_refs.get(section, 0) >= section_refs.get(section, 0):
+                guidance.append(
+                    f"All selected {section_labels[section]} references are low stock. Keep the style on the menu but plan targeted restock."
+                )
+
+        return guidance[:6]
 
     def _select_inventory_for_occasion(
         self,

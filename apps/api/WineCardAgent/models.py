@@ -103,6 +103,7 @@ class MenuAnalysisResult(BaseModel):
     total_inventory_candidates: int = Field(ge=0)
     missing_categories: list[str]
     low_stock_warnings: list[str]
+    seasonal_inventory_guidance: list[str]
     cheap_wine_low_stock_alerts: list[str]
     duplicate_vintage_alerts: list[str]
     reprint_menu_recommended: bool
