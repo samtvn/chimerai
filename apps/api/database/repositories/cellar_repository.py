@@ -1,4 +1,4 @@
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from uuid import UUID
@@ -25,6 +25,15 @@ class CellarRepository(BaseRepository[Cellar]):
             select(Cellar).where(Cellar.user_id == user_id).limit(limit)
         )
         return result.scalars().all()
+
+    async def get_total_in_stock_count(self, user_id: UUID) -> int:
+        """Get the total number of in-stock bottles for a user (no limit)"""
+        result = await self.session.execute(
+            select(func.count(Cellar.id)).where(
+                and_(Cellar.user_id == user_id, Cellar.status == BottleStatus.IN_CELLAR)
+            )
+        )
+        return int(result.scalar() or 0)
 
     async def get_user_cellar_in_stock(self, user_id: UUID, limit: int = 100) -> List[Cellar]:
         """Get all in-stock bottles in a user's cellar"""

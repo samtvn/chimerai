@@ -13,12 +13,11 @@ router = APIRouter(prefix="/api", tags=["inventory"])
 async def cellar_summary(db: AsyncSession = Depends(get_read_db)):
     user_id = await get_demo_user_id(db)
     cellar_repo = CellarRepository(db, read_only=True)
-    in_stock = await cellar_repo.get_user_cellar_in_stock(user_id, limit=1000)
+    total_bottles = await cellar_repo.get_total_in_stock_count(user_id)
+    in_stock = await cellar_repo.get_user_cellar_in_stock(user_id, limit=total_bottles or 1)
 
     wine_ids = list(set(c.wine_id for c in in_stock))
     wine_repo = WineRepository(db, read_only=True)
-
-    total_bottles = len(in_stock)
     purchase_value = 0.0
     market_value = 0.0
     regions: dict[str, int] = {}
