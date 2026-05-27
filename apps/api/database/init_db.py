@@ -17,7 +17,7 @@ from .seeds.users import seed_users
 from .seeds.wines import seed_wines
 
 
-async def init_db():
+async def init_db(scenario: str = "default"):
     async with engine.begin() as conn:
         print("Creating tables...")
         await conn.run_sync(SQLModel.metadata.create_all)
@@ -25,7 +25,9 @@ async def init_db():
 
     await seed_wines()
     await seed_users()
-    await seed_transactions()
+    match scenario:
+        case "default":
+            await seed_transactions()
     await seed_cellars()
     print("Done.")
 
