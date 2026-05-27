@@ -5,7 +5,7 @@
   const seasons: WineCardSeason[] = ["spring", "summer", "autumn", "winter"];
   const vatCountries: VatCountry[] = ["LU", "FR", "BE", "DE"];
   const occasions: WineCardOccasion[] = ["christmas", "valentine", "easter", "banquet"];
-  const menuSectionOrder = ["rose", "sparkling", "white", "red", "dessert", "fortified"];
+  const menuSectionOrder = ["sparkling", "white", "rose", "red", "dessert", "fortified"];
   const menuSectionLabel: Record<string, string> = {
     rose: "Rosé",
     sparkling: "Sparkling",
@@ -13,6 +13,14 @@
     red: "Red",
     dessert: "Dessert",
     fortified: "Fortified",
+  };
+  const menuSectionDotClass: Record<string, string> = {
+    sparkling: "bg-[#ead6a0]",
+    white: "bg-[#cbe3d0]",
+    rose: "bg-[#efc8dd]",
+    red: "bg-[#9b5a70]",
+    dessert: "bg-[#cfa98f]",
+    fortified: "bg-[#cfa98f]",
   };
   const occasionLabels: Record<WineCardOccasion, string> = {
     christmas: "Christmas",
@@ -46,13 +54,28 @@
   let menuViewMode = $state<"preview" | "raw">("preview");
   let activeMenuLayout = $state<"seasonal" | "one-shot">("seasonal");
 
-  const menuPreviewGroups = $derived.by(() => {
+  const glassMenuPreviewGroups = $derived.by(() => {
     const items = exportedMenu?.menu_items ?? [];
     return menuSectionOrder
       .map((section) => ({
         section,
         label: menuSectionLabel[section] ?? section,
-        items: items.filter((item) => item.section === section),
+        items: items.filter(
+          (item) => item.section === section && (item.display_mode === "glass" || item.display_mode === "both")
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  });
+
+  const bottleMenuPreviewGroups = $derived.by(() => {
+    const items = exportedMenu?.menu_items ?? [];
+    return menuSectionOrder
+      .map((section) => ({
+        section,
+        label: menuSectionLabel[section] ?? section,
+        items: items.filter(
+          (item) => item.section === section && (item.display_mode === "bottle" || item.display_mode === "both")
+        ),
       }))
       .filter((group) => group.items.length > 0);
   });
@@ -133,6 +156,10 @@
       banquet: "Banquet Special Food Pairing Card",
     };
     return labels[key];
+  }
+
+  function sectionDotClass(section: string): string {
+    return menuSectionDotClass[section] ?? "bg-slate-300";
   }
 
   const oneShotSelectedGlassTotal = $derived.by(() => {
@@ -315,7 +342,7 @@
         type="number"
         min="0"
         step="0.5"
-        placeholder="Menu price €"
+        placeholder="Menu price (euro)"
         bind:value={oneShotMenuTotalPrice}
       />
       <button class="btn btn-sm btn-outline" onclick={runOneShotMenu} disabled={oneShotRunning}>
@@ -372,10 +399,10 @@
             {#if oneShotSuggestedPairingPrice !== null}
               <div class="mt-1 text-xs">
                 Suggested pairing price:
-                <span class="font-medium">€{oneShotSuggestedPairingPrice.toFixed(2)} TTC</span>
+                <span class="font-medium">{oneShotSuggestedPairingPrice.toFixed(2)} TTC</span>
                 {#if oneShotSuggestedPerServicePrice !== null}
                   · per service target
-                  <span class="font-medium">€{oneShotSuggestedPerServicePrice.toFixed(2)}</span>
+                  <span class="font-medium">{oneShotSuggestedPerServicePrice.toFixed(2)}</span>
                 {/if}
               </div>
             {/if}
@@ -399,7 +426,7 @@
                   {#if activeMenuLayout === "one-shot"}
                     <div class="border-b border-base-300 pb-1 mb-1 flex items-end justify-between">
                       <div class="text-xs font-medium text-base-content/70">Vin</div>
-                      <div class="text-xs font-medium text-base-content/70 text-right">12cl TTC</div>
+                      <div class="text-xs font-medium text-base-content/70 text-right">12cl</div>
                     </div>
                     <div class="flex flex-col">
                       {#each exportedMenu.menu_items.slice(0, 8) as item}
@@ -417,14 +444,14 @@
                             </div>
                           </div>
                           <div class="font-semibold text-sm text-right whitespace-nowrap mt-0.5">
-                            €{item.glass_price_ttc.toFixed(2)}
+                            {item.glass_price_ttc.toFixed(2)}
                           </div>
                         </div>
                       {/each}
                     </div>
                     {#if oneShotSelectedGlassTotal !== null}
                       <div class="mt-2 border-t border-base-300 pt-2 text-right text-sm font-semibold">
-                        Forfait accord mets: €{oneShotSelectedGlassTotal.toFixed(2)} TTC
+                        Forfait accord mets: {oneShotSelectedGlassTotal.toFixed(2)} TTC
                       </div>
                     {/if}
                   {:else}
@@ -444,8 +471,8 @@
                             <td>{menuSectionLabel[item.section] ?? item.section}</td>
                             <td class="font-medium">{item.producer} — {item.wine_name}</td>
                             <td class="text-center">{item.vintage || "NV"}</td>
-                            <td class="text-right">€{item.glass_price_ttc.toFixed(2)}</td>
-                            <td class="text-right">€{item.selling_price_ttc.toFixed(2)}</td>
+                            <td class="text-right">{item.glass_price_ttc.toFixed(2)}</td>
+                            <td class="text-right">{item.selling_price_ttc.toFixed(2)}</td>
                           </tr>
                         {/each}
                       </tbody>
@@ -585,9 +612,9 @@
           {#if pricingPreview}
             <div class="grid grid-cols-2 gap-2 text-sm">
               <div>Markup</div><div class="font-medium">{pricingPreview.markup_coefficient.toFixed(2)}x</div>
-              <div>Selling HT</div><div class="font-medium">€{pricingPreview.selling_price_ht.toFixed(2)}</div>
-              <div>Selling TTC</div><div class="font-medium">€{pricingPreview.selling_price_ttc.toFixed(2)}</div>
-              <div>Glass TTC</div><div class="font-medium">€{pricingPreview.glass_price_ttc.toFixed(2)}</div>
+              <div>Selling HT</div><div class="font-medium">{pricingPreview.selling_price_ht.toFixed(2)}</div>
+              <div>Selling TTC</div><div class="font-medium">{pricingPreview.selling_price_ttc.toFixed(2)}</div>
+              <div>Glass TTC</div><div class="font-medium">{pricingPreview.glass_price_ttc.toFixed(2)}</div>
               <div>VAT</div><div class="font-medium">{(pricingPreview.vat_rate * 100).toFixed(0)}% ({pricingPreview.vat_country})</div>
             </div>
           {/if}
@@ -634,14 +661,14 @@
                 {activeMenuLayout === "one-shot" ? buildOneShotCardTitle(oneShotResultOccasion) : `Wine Menu — ${exportedMenu.season}`}
               </div>
               <div class="text-xs text-base-content/60 mt-1">
-                Prix TTC • Service compris
+                Prix TTC en euros • Service compris
               </div>
             </div>
 
             {#if activeMenuLayout === "one-shot"}
               <div class="border-b border-base-300 pb-2 mb-1 flex items-end justify-between">
                 <div class="text-sm font-medium text-base-content/80">Vin</div>
-                <div class="text-sm font-medium text-base-content/80 text-right">12cl TTC</div>
+                <div class="text-sm font-medium text-base-content/80 text-right">12cl</div>
               </div>
               <div class="flex flex-col">
                 {#each exportedMenu.menu_items as item}
@@ -659,49 +686,108 @@
                       </div>
                     </div>
                     <div class="text-right whitespace-nowrap mt-0.5">
-                      <div class="font-semibold text-base">€{item.glass_price_ttc.toFixed(2)}</div>
+                      <div class="font-semibold text-base">{item.glass_price_ttc.toFixed(2)}</div>
                     </div>
                   </div>
                 {/each}
               </div>
               {#if oneShotSelectedGlassTotal !== null}
                 <div class="mt-3 border-t border-base-300 pt-3 text-right text-sm font-semibold">
-                  Forfait accord mets: €{oneShotSelectedGlassTotal.toFixed(2)} TTC
+                  Forfait accord mets: {oneShotSelectedGlassTotal.toFixed(2)} TTC
                 </div>
               {/if}
             {:else}
               <div class="flex flex-col gap-4">
-                {#each menuPreviewGroups as group}
-                  <div class="overflow-x-auto">
-                    <h5 class="font-semibold mb-2">{group.label}</h5>
-                    <table class="table table-zebra table-xs w-full">
-                      <thead>
-                        <tr>
-                          <th>Wine</th>
-                          <th>Origin</th>
-                          <th class="text-center">Vintage</th>
-                          <th class="text-right">Glass 12cl TTC</th>
-                          <th class="text-right">Bottle 75cl TTC</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {#each group.items as item}
+                <div>
+                  <h5 class="font-semibold mb-2 text-center">By-the-Glass Selection</h5>
+                  {#if glassMenuPreviewGroups.length === 0}
+                    <div class="text-sm text-base-content/60">No by-the-glass wines selected.</div>
+                  {:else}
+                    <div class="overflow-x-auto mb-3">
+                      <table class="table table-xs w-full">
+                        <thead>
                           <tr>
-                            <td class="font-medium">{item.producer} — {item.wine_name}</td>
-                            <td>{[item.appellation, item.region, item.country].filter(Boolean).join(" / ") || "—"}</td>
-                            <td class="text-center">{item.vintage || "NV"}</td>
-                            <td class="text-right">€{item.glass_price_ttc.toFixed(2)}</td>
-                            <td class="text-right">€{item.selling_price_ttc.toFixed(2)}</td>
+                            <th>Wine</th>
+                            <th>Origin</th>
+                            <th class="text-center">Vintage</th>
+                            <th class="text-right">12cl</th>
                           </tr>
-                        {/each}
-                      </tbody>
-                    </table>
-                  </div>
-                {/each}
+                        </thead>
+                        <tbody>
+                            {#each glassMenuPreviewGroups as group}
+                              {#each group.items as item}
+                                <tr>
+                                <td class="font-medium">
+                                  <span class="inline-flex items-center gap-2">
+                                    <span class={`inline-block h-2.5 w-2.5 rounded-full ${sectionDotClass(item.section)}`}></span>
+                                    <span>{item.producer} — {item.wine_name}</span>
+                                  </span>
+                                </td>
+                                <td>{[item.appellation, item.region, item.country].filter(Boolean).join(" / ") || "—"}</td>
+                                <td class="text-center">{item.vintage || "NV"}</td>
+                                <td class="text-right">{item.glass_price_ttc.toFixed(2)}</td>
+                              </tr>
+                            {/each}
+                          {/each}
+                        </tbody>
+                      </table>
+                    </div>
+                  {/if}
+                </div>
+
+                <div>
+                  <h5 class="font-semibold mb-2 text-center">Bottle Selection</h5>
+                  {#if bottleMenuPreviewGroups.length === 0}
+                    <div class="text-sm text-base-content/60">No bottle wines selected.</div>
+                  {:else}
+                    <div class="overflow-x-auto mb-3">
+                      <table class="table table-xs w-full">
+                        <thead>
+                          <tr>
+                            <th>Wine</th>
+                            <th>Origin</th>
+                            <th class="text-center">Vintage</th>
+                            <th class="text-right">Bottle</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                            {#each bottleMenuPreviewGroups as group}
+                              {#each group.items as item}
+                              <tr>
+                                <td>
+                                  <div class="font-medium inline-flex items-center gap-2">
+                                    <span class={`inline-block h-2.5 w-2.5 rounded-full ${sectionDotClass(item.section)}`}></span>
+                                    <span>{item.producer} — {item.wine_name}</span>
+                                  </div>
+                                </td>
+                                <td>{[item.appellation, item.region, item.country].filter(Boolean).join(" / ") || "—"}</td>
+                                <td class="text-center">{item.vintage || "NV"}</td>
+                                <td class="text-right">{item.selling_price_ttc.toFixed(2)}</td>
+                              </tr>
+                            {/each}
+                          {/each}
+                        </tbody>
+                      </table>
+                    </div>
+                  {/if}
+                </div>
               </div>
             {/if}
 
             <div class="mt-4 pt-3 border-t border-base-300 text-xs text-base-content/70 space-y-1">
+              {#if activeMenuLayout !== "one-shot"}
+                <div class="mb-2">
+                  <div class="font-medium mb-1">Légende</div>
+                  <div class="flex flex-wrap gap-x-4 gap-y-1">
+                    {#each menuSectionOrder as section}
+                      <span class="inline-flex items-center gap-1.5">
+                        <span class={`inline-block h-2.5 w-2.5 rounded-full ${sectionDotClass(section)}`}></span>
+                        <span>{menuSectionLabel[section]}</span>
+                      </span>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
               <div>L’abus d’alcool est dangereux pour la santé, à consommer avec modération.</div>
               <div>La vente d’alcool est interdite aux mineurs.</div>
             </div>

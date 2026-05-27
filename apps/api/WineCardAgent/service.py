@@ -22,7 +22,7 @@ from .pricing import calculate_restaurant_price_ttc
 from .repository import WineCardRepository
 
 
-SECTION_ORDER = ["rose", "sparkling", "white", "red", "dessert", "fortified"]
+SECTION_ORDER = ["sparkling", "white", "rose", "red", "dessert", "fortified"]
 COLOR_TO_SECTION = {
     "sparkling": "sparkling",
     "white": "white",
@@ -36,6 +36,8 @@ COLOR_TO_SECTION = {
 BIG_WINE_MIN_PRICE = 50.0
 CHEAP_WINE_MAX_PRICE = 50.0
 CHEAP_WINE_LOW_STOCK_THRESHOLD = 2
+MIN_GLASS_SERVICE_STOCK = 3
+DESSERT_MAX_GLASS_PRICE_TTC = 14.0
 
 SEASONAL_STRATEGIES = {
     Season.SUMMER: SeasonalStrategy(
@@ -714,9 +716,6 @@ class WineCardService:
             Structured export containing markdown and menu row details.
         """
         menu_items: list[MenuItem] = []
-        # Split inventory into by-the-glass candidates (front) and bottle-only (back)
-        glass_items: list[MenuItem] = []
-        bottle_items: list[MenuItem] = []
         for item in inventory:
             pricing = calculate_restaurant_price_ttc(
                 item.purchase_price_ht,
@@ -739,20 +738,21 @@ class WineCardService:
                 avg_market_price=item.avg_market_price,
                 selling_price_ttc=pricing.selling_price_ttc,
                 glass_price_ttc=pricing.glass_price_ttc,
-                display_mode="both",
+                display_mode="bottle",
             )
+            menu_items.append(menu_item)
 
-            # Determine if this should be presented as glass-first candidate.
-            # Heuristic: enough stock for glass service and glass price sensible.
-            if item.quantity >= 2 and pricing.glass_price_ttc is not None:
-                menu_item.display_mode = "glass"
-                glass_items.append(menu_item)
-            else:
-                menu_item.display_mode = "bottle"
-                bottle_items.append(menu_item)
+        # For seasonal menus, keep by-the-glass strictly curated to avoid waste.
+        # One-shot menus are explicitly glass-driven and should keep all selected refs visible.
+        if not one_shot_layout:
+            controlled_glass_ids = self._select_controlled_glass_wines(
+                inventory=inventory,
+                vat_country=vat_country,
+            )
+            for menu_item in menu_items:
+                menu_item.display_mode = "glass" if menu_item.wine_id in controlled_glass_ids else "bottle"
 
-        # Final ordering: glass-first then bottle.
-        menu_items = glass_items + bottle_items
+        # Final ordering: glass section first, then bottle section.
         menu_items.sort(
             key=lambda m: (
                 0 if m.display_mode == "glass" else 1,
@@ -783,6 +783,168 @@ class WineCardService:
             markdown=markdown,
             menu_items=menu_items,
         )
+
+    def _select_controlled_glass_wines(
+        self,
+        inventory: list[InventoryItem],
+        vat_country: VatCountry,
+    ) -> set[int]:
+        """Pick a tight, operational by-the-glass set for seasonal menus.
+
+        Target mix (when available):
+            - Sparkling: 1
+            - Rosé: 1
+            - White: 1 non-oaky + 1 oaky
+            - Red: 1 light + 1 structured/heavy
+            - Fortified: 1
+            - Dessert: optional, only when glass price is reasonable
+        """
+        eligible = [item for item in inventory if item.quantity >= MIN_GLASS_SERVICE_STOCK]
+        if not eligible:
+            return set()
+
+        price_by_id = {
+            item.wine_id: calculate_restaurant_price_ttc(
+                item.purchase_price_ht,
+                vat_country=vat_country,
+            ).glass_price_ttc
+            for item in eligible
+        }
+        selected_ids: set[int] = set()
+
+        def pick_one(candidates: list[InventoryItem], prefer_richer: bool = False) -> InventoryItem | None:
+            pool = [c for c in candidates if c.wine_id not in selected_ids]
+            if not pool:
+                return None
+            if prefer_richer:
+                pool.sort(
+                    key=lambda c: (
+                        -float(c.quantity),
+                        -price_by_id.get(c.wine_id, 0.0),
+                        -c.purchase_price_ht,
+                        c.producer,
+                        c.wine_name,
+                    )
+                )
+            else:
+                pool.sort(
+                    key=lambda c: (
+                        -float(c.quantity),
+                        price_by_id.get(c.wine_id, 0.0),
+                        c.purchase_price_ht,
+                        c.producer,
+                        c.wine_name,
+                    )
+                )
+            chosen = pool[0]
+            selected_ids.add(chosen.wine_id)
+            return chosen
+
+        def in_section(section: str) -> list[InventoryItem]:
+            return [item for item in eligible if self._map_section(item.wine_color) == section]
+
+        # 1) Sparkling + Rosé + Fortified
+        pick_one(in_section("sparkling"))
+        pick_one(in_section("rose"))
+        pick_one(in_section("fortified"))
+
+        # 2) White: one non-oaky + one oaky
+        whites = in_section("white")
+        non_oaky_whites = [w for w in whites if not self._is_oaky_white(w)]
+        oaky_whites = [w for w in whites if self._is_oaky_white(w)]
+        first_white = pick_one(non_oaky_whites) or pick_one(whites)
+        if first_white is not None:
+            pick_one(oaky_whites) or pick_one(whites)
+        else:
+            pick_one(whites)
+
+        # 3) Red: one light + one heavy/structured
+        reds = in_section("red")
+        light_reds = [r for r in reds if self._is_light_red(r)]
+        heavy_reds = [r for r in reds if self._is_heavy_red(r)]
+        first_red = pick_one(light_reds) or pick_one(reds)
+        if first_red is not None:
+            pick_one(heavy_reds, prefer_richer=True) or pick_one(reds, prefer_richer=True)
+        else:
+            pick_one(reds, prefer_richer=True)
+
+        # 4) Optional dessert by-the-glass only if not expensive
+        dessert_candidates = [
+            d for d in in_section("dessert")
+            if price_by_id.get(d.wine_id, 999.0) <= DESSERT_MAX_GLASS_PRICE_TTC
+        ]
+        pick_one(dessert_candidates)
+
+        return selected_ids
+
+    def _wine_text_blob(self, item: InventoryItem) -> str:
+        return " ".join(
+            [
+                item.producer or "",
+                item.wine_name or "",
+                item.appellation or "",
+                item.region or "",
+                item.country or "",
+                item.grape_variety or "",
+            ]
+        ).lower()
+
+    def _is_oaky_white(self, item: InventoryItem) -> bool:
+        text = self._wine_text_blob(item)
+        oaky_markers = [
+            "barrique",
+            "boisé",
+            "boise",
+            "oak",
+            "fût",
+            "fut",
+            "chardonnay",
+            "meursault",
+            "puligny",
+            "montrachet",
+            "chassagne",
+        ]
+        non_oak_markers = [
+            "chablis",
+            "sauvignon",
+            "riesling",
+            "albari",
+            "pinot grigio",
+            "muscadet",
+            "verdejo",
+            "picpoul",
+        ]
+        if any(marker in text for marker in non_oak_markers):
+            return False
+        return any(marker in text for marker in oaky_markers)
+
+    def _is_light_red(self, item: InventoryItem) -> bool:
+        text = self._wine_text_blob(item)
+        light_markers = [
+            "pinot noir",
+            "gamay",
+            "beaujolais",
+            "frappato",
+            "valpolicella",
+            "cinsault",
+        ]
+        return any(marker in text for marker in light_markers)
+
+    def _is_heavy_red(self, item: InventoryItem) -> bool:
+        text = self._wine_text_blob(item)
+        heavy_markers = [
+            "cabernet sauvignon",
+            "syrah",
+            "shiraz",
+            "malbec",
+            "mourvèdre",
+            "mourvedre",
+            "tannat",
+            "priorat",
+            "barolo",
+            "bordeaux",
+        ]
+        return any(marker in text for marker in heavy_markers)
 
     def _build_menu_analysis_from_inventory(
         self,
