@@ -20,6 +20,7 @@ from apps.api.agents.WineCellarAgent.models import (
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.models.cellar import BottleStatus, Cellar
 from apps.api.database.models.wines import Wine
+from apps.api.events.bus import AgentEvent, event_bus
 from apps.api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage
@@ -28,6 +29,7 @@ from sqlalchemy import func, select
 from .tools import make_tools
 
 LOW_STOCK_THRESHOLD = 3
+MAX_EVENT_MESSAGE_LEN = 2000
 
 INVENTORY_AUDIT_SYSTEM_PROMPT = """You are the Inventory Audit agent for Chimerai, a restaurant sommelier system.
 
@@ -55,6 +57,18 @@ def create_inventory_audit_agent(user_id: str):
         model=gemini_flash_3_1_lite,
         tools=tools,
         system_prompt=INVENTORY_AUDIT_SYSTEM_PROMPT,
+    )
+
+
+async def _publish_inventory_event(event_type: str, message: str) -> None:
+    if len(message) > MAX_EVENT_MESSAGE_LEN:
+        message = message[:MAX_EVENT_MESSAGE_LEN] + "..."
+    await event_bus.publish(
+        AgentEvent(
+            source="CellarAnalysisAgent",
+            type=event_type,
+            message=message,
+        )
     )
 
 
@@ -188,9 +202,23 @@ def _default_recommendations() -> list[Recommendation]:
 
 
 async def _generate_recommendations(
-    strengths: str, weaknesses: str
+    strengths: str, weaknesses: str, context: dict[str, Any]
 ) -> list[Recommendation]:
     allowed_aspects = ", ".join(aspect.value for aspect in WineBuyingAspect)
+    required_aspects = {
+        WineBuyingAspect.COUNTRY.value,
+        WineBuyingAspect.REGION.value,
+        WineBuyingAspect.GRAPE_VARIETY.value,
+        WineBuyingAspect.COLOUR.value,
+    }
+    style_aspects = {
+        WineBuyingAspect.STYLE.value,
+        WineBuyingAspect.BODY.value,
+        WineBuyingAspect.ACIDITY.value,
+        WineBuyingAspect.TANNIN.value,
+        WineBuyingAspect.SWEETNESS.value,
+        WineBuyingAspect.FOOD_PAIRING.value,
+    }
 
     prompt = f"""Based on the wine cellar analysis, return a structured recommendation plan.
 
@@ -200,7 +228,20 @@ Strengths:
 Weaknesses:
 {weaknesses}
 
-Generate 4-6 specific, actionable recommendations to improve this wine cellar.
+Generate 2-4 specific, actionable recommendations to improve this wine cellar.
+
+Use the cellar context below to make targets concrete (pick actual values from these lists).
+
+Cellar context:
+- Missing colors: {context.get("missing_colors")}
+- Low-stock wines: {context.get("low_stock_wines")}
+- Top countries: {context.get("top_countries")}
+- Low countries: {context.get("low_countries")}
+- Top regions: {context.get("top_regions")}
+- Low regions: {context.get("low_regions")}
+- Top grape varieties: {context.get("top_grapes")}
+- Low grape varieties: {context.get("low_grapes")}
+- Current colors: {context.get("current_colors")}
 
 Each recommendation must include:
 - title
@@ -215,7 +256,11 @@ Each recommendation must include:
 Rules for parameters:
 - Each recommendation must propose at least one wine purchase parameter.
 - Each parameter.aspect must be one of: {allowed_aspects}
-- The target field should be a concise value or range.
+- Each recommendation must include at least two parameters.
+- At least one parameter must use an aspect from {sorted(required_aspects)}.
+- At least one parameter must use an aspect from {sorted(style_aspects)} or price_range.
+- The target field should be a concise value or range drawn from the cellar context.
+- Never use generic targets like "underrepresented countries" or "a colour not dominant".
 - The recommendation must always include a price range expressed as a concise human-readable range such as "15-25 EUR".
 - quantity_to_buy must be a positive integer.
 - Keep the recommendations practical and varied.
@@ -254,10 +299,38 @@ Rules for parameters:
             return None
         return text[start : end + 1]
 
+    generic_targets = {
+        "underrepresented countries",
+        "underrepresented regions",
+        "a colour not currently dominant in the cellar",
+        "a color not currently dominant in the cellar",
+        "missing categories",
+        "missing category",
+        "underrepresented",
+    }
+
+    def _needs_repair(plan: RecommendationPlan) -> str | None:
+        for idx, rec in enumerate(plan.recommendations, start=1):
+            if len(rec.parameters) < 2:
+                return f"Recommendation {idx} must include at least two parameters."
+            aspects = {param.aspect.value for param in rec.parameters}
+            if not aspects.intersection(required_aspects):
+                return f"Recommendation {idx} must include a concrete country/region/grape/colour parameter."
+            if not (aspects.intersection(style_aspects) or WineBuyingAspect.PRICE_RANGE.value in aspects):
+                return f"Recommendation {idx} must include a style-related or price_range parameter."
+            for param in rec.parameters:
+                target = param.target.strip().lower()
+                if target in generic_targets or "underrepresented" in target:
+                    return f"Recommendation {idx} uses a generic target."
+        return None
+
     last_error = ""
     try:
         structured_llm = gemini_flash_3_1_lite.with_structured_output(RecommendationPlan)
         response = await structured_llm.ainvoke(prompt)
+        repair_reason = _needs_repair(response)
+        if repair_reason:
+            raise ValueError(repair_reason)
         return response.recommendations
     except Exception as e:
         last_error = str(e)
@@ -277,6 +350,9 @@ Rules for parameters:
                 raise ValueError("No JSON object found in model response")
             data = json.loads(json_text)
             plan = _validate_plan(data)
+            repair_reason = _needs_repair(plan)
+            if repair_reason:
+                raise ValueError(repair_reason)
             return plan.recommendations
         except Exception as e:
             last_error = str(e)
@@ -296,7 +372,16 @@ async def run_inventory_audit(user_id: str, query: str) -> WineCellarAnalysis:
     3. Compose a WineCellarAnalysis using the shared output models.
     """
     # Step 1: Structured data from DB
+    await _publish_inventory_event(
+        "action",
+        f"Analyzing cellar inventory for user {user_id}.",
+    )
     data = await _fetch_cellar_data(user_id)
+
+    await _publish_inventory_event(
+        "observation",
+        f"Loaded {data['total_wines']} wine entries with {data['total_quantity']} bottles.",
+    )
 
     total_wines = data["total_wines"]
     total_quantity = data["total_quantity"]
@@ -318,6 +403,15 @@ async def run_inventory_audit(user_id: str, query: str) -> WineCellarAnalysis:
         "distribution_by_color": by_color,
         "distribution_by_grape_variety": by_grape_variety,
     }
+
+    def _ranked_keys(counter: dict[str, int], limit: int = 3, reverse: bool = False) -> list[str]:
+        if not counter:
+            return []
+        return [
+            key
+            for key in sorted(counter, key=counter.get, reverse=reverse)
+            if key
+        ][:limit]
 
     cellar_context = f"""Cellar snapshot:
 - Total wine entries: {total_wines}
@@ -347,6 +441,11 @@ List each strength as a clear, concise statement."""
     except Exception:
         strengths_text = ""
 
+    await _publish_inventory_event(
+        "observation",
+        f"Strengths draft: {strengths_text or 'none'}.",
+    )
+
     # Step 2b: Weaknesses
     weaknesses_prompt = f"""{cellar_context}
 
@@ -364,8 +463,46 @@ List each weakness as a clear, concise statement."""
     except Exception:
         weaknesses_text = ""
 
+    await _publish_inventory_event(
+        "observation",
+        f"Weaknesses draft: {weaknesses_text or 'none'}.",
+    )
+
     # Step 2c: Recommendations
-    recommendations = await _generate_recommendations(strengths_text, weaknesses_text)
+    recommendation_context = {
+        "missing_colors": diversity_gaps,
+        "low_stock_wines": low_stock_wines,
+        "top_countries": _ranked_keys(by_country, reverse=True),
+        "low_countries": _ranked_keys(by_country, reverse=False),
+        "top_regions": _ranked_keys(by_region, reverse=True),
+        "low_regions": _ranked_keys(by_region, reverse=False),
+        "top_grapes": _ranked_keys(by_grape_variety, reverse=True),
+        "low_grapes": _ranked_keys(by_grape_variety, reverse=False),
+        "current_colors": list(by_color.keys()),
+    }
+    recommendations = await _generate_recommendations(
+        strengths_text,
+        weaknesses_text,
+        recommendation_context,
+    )
+
+    await _publish_inventory_event(
+        "observation",
+        f"Generated {len(recommendations)} recommendation(s).",
+    )
+
+    for idx, rec in enumerate(recommendations, start=1):
+        if hasattr(rec, "model_dump"):
+            rec_payload = rec.model_dump()
+        elif hasattr(rec, "dict"):
+            rec_payload = rec.dict()
+        else:
+            rec_payload = str(rec)
+        rec_text = json.dumps(rec_payload, ensure_ascii=True)
+        await _publish_inventory_event(
+            "observation",
+            f"Recommendation {idx}: {rec_text}",
+        )
 
     def _to_str(val: Any) -> str:
         if isinstance(val, str):
@@ -411,6 +548,8 @@ List each weakness as a clear, concise statement."""
         f"{len(weaknesses_list)} areas for improvement. "
         f"{len(recommendations)} actionable recommendations have been identified."
     )
+
+    await _publish_inventory_event("final", summary)
 
     return WineCellarAnalysis(
         total_wines=total_wines,
