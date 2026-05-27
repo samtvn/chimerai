@@ -201,7 +201,7 @@ class Orchestrator:
         if event_type == "wine_sold":
             destinations.append("update_menu")
 
-        if event_type in {"wine_sold", "cellar_analysis"}:
+        if event_type in {"wine_sold", "analysis", "analysis_run"}:
             destinations.append("orchestrator_router")
 
         return destinations or "orchestrator_router"
