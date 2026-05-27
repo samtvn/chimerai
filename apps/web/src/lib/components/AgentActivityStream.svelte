@@ -46,6 +46,7 @@
   };
 
   $effect(() => {
+    agentStore.events.length; // track length so effect re-runs on new events
     if (autoScroll && containerEl) {
       containerEl.scrollTop = containerEl.scrollHeight;
     }
