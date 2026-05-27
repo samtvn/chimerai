@@ -63,6 +63,11 @@ export function getAgentStore() {
     async trigger(trigger = "manual", data?: Record<string, unknown>) {
       return api.agent.trigger(trigger, data);
     },
+
+    async triggerAnalysis() {
+      if (agentRunning) return;
+      return api.agent.analyse();
+    },
   };
 }
 

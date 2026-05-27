@@ -131,31 +131,6 @@
       </div>
     </div>
 
-    <div class="card bg-base-100 border border-primary-content lg:col-span-3">
-      <div class="card-body p-4">
-        <h2 class="card-title text-base">Cellar Balance by Region</h2>
-        <div class="mt-4 flex flex-col gap-3">
-          {#each summary?.region_balance ?? [] as item (item.region)}
-            <div class="flex items-center gap-3">
-              <span
-                class="w-20 shrink-0 text-right text-xs text-base-content/60"
-                >{item.region}</span
-              >
-              <div class="flex-1 rounded-full bg-base-300 h-3 overflow-hidden">
-                <div
-                  class="h-full rounded-full bg-primary transition-all duration-500"
-                  style="width: {item.pct}%"
-                ></div>
-              </div>
-              <span class="w-8 shrink-0 text-xs text-base-content/50"
-                >{item.pct}%</span
-              >
-            </div>
-          {/each}
-        </div>
-      </div>
-    </div>
-
     {#if alerts.length > 0}
       <div class="flex flex-col gap-2">
         <h2 class="font-semibold text-base">Alerts</h2>

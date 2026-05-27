@@ -269,6 +269,8 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ trigger }),
       }),
+    analyse: () =>
+      fetchApi<{ status: string }>("/agents/analyse", { method: "POST" }),
     status: () => fetchApi<{ status: string; subscriber_count: number; recent_events: number }>("/agent/status"),
   },
 

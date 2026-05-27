@@ -1,27 +1,26 @@
-from contextlib import asynccontextmanager, suppress
 import asyncio
-from fastapi import FastAPI
+from contextlib import asynccontextmanager, suppress
+
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.database.database import engine
 from apps.api.database.dependencies import get_read_db
 from apps.api.database.repositories import UserRepository
-
-# from routes.agent import router as agent_router
+from apps.api.events.handlers.orchestrator_trigger import run_event_listener
+from routes.agents import router as agent_router
 from routes.alerts import router as alerts_router
-from routes.examples import router as examples_router
 from routes.cellar import router as inventory_router
+from routes.examples import router as examples_router
+from routes.recommendations import router as recommendations_router
 from routes.sse import router as sse_router
 from routes.summary import router as summary_router
 from routes.transactions import router as transactions_router
 from routes.wines import router as wines_router
-from apps.api.events.handlers.orchestrator_trigger import run_event_listener
-
-from routes.recommendations import router as recommendations_router
 from WineCardAgent.routes import router as wine_card_router
 from WineCardAgent.trigger_service import WineCardTriggerService
+
 # _scheduler_task = None
 
 # async def _periodic_analysis():
@@ -86,6 +85,7 @@ app.include_router(transactions_router)
 app.include_router(wines_router)
 app.include_router(recommendations_router)
 app.include_router(wine_card_router)
+app.include_router(agent_router)
 
 
 @app.get("/")

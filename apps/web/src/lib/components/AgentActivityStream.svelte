@@ -74,16 +74,22 @@
       </h3>
       <div class="flex items-center gap-1">
         <button
-          class="btn btn-ghost btn-xs"
-          onclick={() => agentStore.trigger("manual")}
-          title="Trigger agent"
+          class="btn btn-primary btn-xs"
+          onclick={() => agentStore.triggerAnalysis()}
+          disabled={agentStore.agentRunning}
+          title="Run a full cellar analysis"
         >
-          <Play size="12" /> Run
+          {#if agentStore.agentRunning}
+            <span class="loading loading-spinner loading-xs"></span> Running…
+          {:else}
+            <Play size="12" /> Run Analysis
+          {/if}
         </button>
         {#if hasFailure}
           <button
             class="btn btn-ghost btn-xs text-warning"
-            onclick={() => agentStore.trigger("manual")}
+            onclick={() => agentStore.triggerAnalysis()}
+            disabled={agentStore.agentRunning}
             title="Resume from last checkpoint"
           >
             <RefreshCw size="12" /> Resume

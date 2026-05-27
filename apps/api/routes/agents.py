@@ -38,3 +38,14 @@ async def run_agent_sync(request: TriggerRequest):
     """
     result = await run_once(AgentEvent(source="api", type="analysis_run", message=request.trigger))
     return {"status": "completed", "result": result}
+
+
+@router.post("/analyse")
+async def run_analysis(background_tasks: BackgroundTasks):
+    """
+    Alias for /run with a default trigger message.
+    """
+    background_tasks.add_task(
+        run_once, AgentEvent(source="api", type="analysis_run", message="Full analysis")
+    )
+    return {"status": "started"}
