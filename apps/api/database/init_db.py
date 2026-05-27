@@ -15,6 +15,7 @@ from .seeds.cellar import seed_cellars
 from .seeds.transactions import seed_transactions
 from .seeds.users import seed_users
 from .seeds.wines import seed_wines
+from .seeds.transactions_2 import seed_transactions_2
 
 
 async def init_db(scenario: str = "default"):
@@ -28,6 +29,9 @@ async def init_db(scenario: str = "default"):
     match scenario:
         case "default":
             await seed_transactions()
+        case "no_rose":
+            await seed_transactions_2()
+
     await seed_cellars()
     print("Done.")
 
