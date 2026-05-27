@@ -132,7 +132,10 @@ async def test_service_export_and_analysis_offline():
     assert "Editable Wine List" in menu.markdown
     assert menu.markdown.startswith("# Chimerai Bistro")
     assert "2019" in menu.markdown
-    assert "12cl TTC | Bottle TTC" in menu.markdown
+    assert "## By-the-Glass Selection" in menu.markdown
+    assert "## Bottle Selection" in menu.markdown
+    assert "| Wine | Origin | Vintage | 12cl TTC |" in menu.markdown
+    assert "| Wine | Origin | Vintage | Bottle TTC |" in menu.markdown
     assert "| Stock |" not in menu.markdown
     assert "Prix TTC service compris." in menu.markdown
     assert "consommer avec modération" in menu.markdown
@@ -173,6 +176,11 @@ async def test_one_shot_menu_offline():
     assert one_shot.menu_export.items_count == one_shot.selected_items
     assert len(one_shot.pairing_notes) > 0
     assert "3 services + 3 wines" in one_shot.llm_prompt
+    assert "Selected glass total" in one_shot.summary
+    assert "## Christmas Special Food Pairing Card" in one_shot.menu_export.markdown
+    assert "Forfait accord mets:" in one_shot.menu_export.markdown
+    assert "Bottle TTC" not in one_shot.menu_export.markdown
+    assert "| Wine | Origin | Vintage | Tasting note | 12cl TTC |" in one_shot.menu_export.markdown
 
     banquet = await service.generate_one_shot_menu(
         user_id=user_id,

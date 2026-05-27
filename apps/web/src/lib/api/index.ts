@@ -85,6 +85,7 @@ export interface Recommendation {
 export type WineCardSeason = "spring" | "summer" | "autumn" | "winter";
 export type VatCountry = "LU" | "FR" | "BE" | "DE";
 export type WineCardTriggerReason = "manual" | "wine_sold" | "low_stock_scan";
+export type WineCardOccasion = "christmas" | "valentine" | "easter" | "banquet";
 
 export interface WineCardInventoryItem {
   wine_id: number;
@@ -185,6 +186,24 @@ export interface WineCardTriggerReport {
   wine_fair_watchlist: string[];
   menu_export: WineCardMenuExportResult | null;
   menu_analysis: WineCardMenuAnalysis | null;
+}
+
+export interface WineCardOneShotResult {
+  occasion: WineCardOccasion;
+  season: WineCardSeason;
+  vat_country: VatCountry;
+  by_glass_mode: boolean;
+  service_count: number;
+  menu_total_price_ttc: number | null;
+  suggested_pairing_price_ttc: number | null;
+  suggested_per_service_price_ttc: number | null;
+  inventory_candidates: number;
+  selected_items: number;
+  summary: string;
+  llm_prompt: string;
+  pairing_notes: string[];
+  menu_export: WineCardMenuExportResult;
+  menu_analysis: WineCardMenuAnalysis;
 }
 
 export const api = {

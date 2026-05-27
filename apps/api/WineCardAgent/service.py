@@ -243,22 +243,28 @@ class WineCardService:
         profile = OCCASION_PROFILES[occasion]
         season: Season = profile["season"]
         by_glass_mode = occasion != Occasion.BANQUET
-        if service_count < 3:
-            service_count = 3
-        if service_count < 4:
-            service_count = 4
-        if service_count > 5:
-            service_count = 5
+        service_count = max(3, min(5, service_count))
+        suggested_pairing_price_ttc, suggested_per_service_price_ttc = self._compute_pairing_budget(
+            menu_total_price_ttc=menu_total_price_ttc,
+            service_count=service_count,
+            by_glass_mode=by_glass_mode,
+        )
 
         # For by-the-glass one-shot menus we want a very short list: one wine per service
         # so cap total results to `service_count` and prefer at most one per section.
         if by_glass_mode:
+            soft_max_glass_price = None
+            if suggested_per_service_price_ttc is not None:
+                soft_max_glass_price = round(suggested_per_service_price_ttc * 1.25, 2)
             selected_inventory = self._select_inventory_for_occasion(
                 inventory=inventory,
                 target_sections=profile["target_sections"],
                 max_per_section=1,
                 max_total=service_count,
                 min_quantity=profile["min_quantity"],
+                vat_country=vat_country,
+                max_total_glass_price_ttc=suggested_pairing_price_ttc,
+                soft_max_glass_price_ttc=soft_max_glass_price,
             )
         else:
             selected_inventory = self._select_inventory_for_occasion(
@@ -267,6 +273,7 @@ class WineCardService:
                 max_per_section=profile["max_per_section"],
                 max_total=profile["max_total"],
                 min_quantity=profile["min_quantity"],
+                vat_country=vat_country,
             )
 
             # If by-the-glass mode, enforce a curated glass-first selection with
@@ -340,11 +347,19 @@ class WineCardService:
                 reverse=True,
             )[: profile["max_total"]]
 
+        selected_glass_total_ttc = self._compute_glass_total_ttc(
+            selected_inventory,
+            vat_country=vat_country,
+        )
+
         menu_export = self._build_menu_export_from_inventory(
             inventory=selected_inventory,
             season=season,
             vat_country=vat_country,
             restaurant_name=restaurant_name,
+            one_shot_layout=True,
+            one_shot_title=self._build_one_shot_card_title(occasion),
+            one_shot_forfait_total_ttc=selected_glass_total_ttc,
         )
         menu_analysis = self._build_menu_analysis_from_inventory(
             inventory=selected_inventory,
@@ -361,12 +376,6 @@ class WineCardService:
                 max_items=service_count,
             )
 
-        suggested_pairing_price_ttc, suggested_per_service_price_ttc = self._compute_pairing_budget(
-            menu_total_price_ttc=menu_total_price_ttc,
-            service_count=service_count,
-            by_glass_mode=by_glass_mode,
-        )
-
         summary = (
             f"Generated one-shot {occasion.value} menu with {len(selected_inventory)} wines "
             f"from {len(inventory)} inventory candidates. "
@@ -374,8 +383,11 @@ class WineCardService:
         )
         if by_glass_mode:
             summary += f" Service format: {service_count} services + {service_count} wines."
+            summary += f" Selected glass total: €{selected_glass_total_ttc:.2f} TTC."
         if suggested_pairing_price_ttc is not None:
             summary += f" Suggested pairing price: €{suggested_pairing_price_ttc:.2f} TTC."
+            if selected_glass_total_ttc > suggested_pairing_price_ttc:
+                summary += " Budget alert: selected wines exceed target; review one expensive reference."
 
         return OneShotMenuResult(
             occasion=occasion,
@@ -680,6 +692,9 @@ class WineCardService:
         season: Season,
         vat_country: VatCountry,
         restaurant_name: str,
+        one_shot_layout: bool = False,
+        one_shot_title: str | None = None,
+        one_shot_forfait_total_ttc: float | None = None,
     ) -> MenuExportResult:
         """Build the menu export payload from a preselected inventory set.
 
@@ -733,15 +748,30 @@ class WineCardService:
                 menu_item.display_mode = "bottle"
                 bottle_items.append(menu_item)
 
-        # Final ordering: glass-first then bottle
+        # Final ordering: glass-first then bottle.
         menu_items = glass_items + bottle_items
-
-        menu_items.sort(key=lambda m: (self._section_rank(m.section), m.producer, m.wine_name))
-        markdown = self._build_editable_menu_markdown(
-            menu_items,
-            season=season,
-            restaurant_name=restaurant_name,
+        menu_items.sort(
+            key=lambda m: (
+                0 if m.display_mode == "glass" else 1,
+                self._section_rank(m.section),
+                m.producer,
+                m.wine_name,
+            )
         )
+        if one_shot_layout:
+            markdown = self._build_one_shot_menu_markdown(
+                menu_items,
+                season=season,
+                restaurant_name=restaurant_name,
+                one_shot_title=one_shot_title,
+                one_shot_forfait_total_ttc=one_shot_forfait_total_ttc,
+            )
+        else:
+            markdown = self._build_editable_menu_markdown(
+                menu_items,
+                season=season,
+                restaurant_name=restaurant_name,
+            )
 
         return MenuExportResult(
             season=season,
@@ -894,40 +924,197 @@ class WineCardService:
         max_per_section: int,
         max_total: int,
         min_quantity: int,
+        vat_country: VatCountry,
+        max_total_glass_price_ttc: float | None = None,
+        soft_max_glass_price_ttc: float | None = None,
     ) -> list[InventoryItem]:
         collapsed_inventory, _ = self._collapse_to_oldest_vintages(inventory)
         grouped: dict[str, list[InventoryItem]] = {section: [] for section in target_sections}
+        eligible_inventory = [item for item in collapsed_inventory if item.quantity >= min_quantity]
+        pricing_by_wine_id: dict[int, float] = {}
         for item in collapsed_inventory:
             section = self._map_section(item.wine_color)
+            pricing_by_wine_id[item.wine_id] = calculate_restaurant_price_ttc(
+                item.purchase_price_ht,
+                vat_country=vat_country,
+            ).glass_price_ttc
             if section in grouped and item.quantity >= min_quantity:
                 grouped[section].append(item)
 
+        def glass_price(item: InventoryItem) -> float:
+            return pricing_by_wine_id.get(item.wine_id, 0.0)
+
+        def select_sort_key(item: InventoryItem) -> tuple[float, float, float]:
+            # In budget mode, prioritize affordable glasses first.
+            if max_total_glass_price_ttc is not None:
+                return (glass_price(item), -float(item.quantity), item.purchase_price_ht)
+            return (-float(item.quantity), -item.purchase_price_ht, glass_price(item))
+
         selected: list[InventoryItem] = []
         selected_ids: set[int] = set()
+        running_total = 0.0
+
+        def can_add_candidate(candidate: InventoryItem) -> bool:
+            nonlocal running_total
+            if max_total_glass_price_ttc is None:
+                return True
+            candidate_price = glass_price(candidate)
+            projected_total = running_total + candidate_price
+            if projected_total <= max_total_glass_price_ttc + 0.01:
+                return True
+
+            remaining_slots = max_total - (len(selected) + 1)
+            if remaining_slots <= 0:
+                return projected_total <= max_total_glass_price_ttc + 0.01
+
+            remaining_prices = sorted(
+                glass_price(item)
+                for item in eligible_inventory
+                if item.wine_id not in selected_ids and item.wine_id != candidate.wine_id
+            )
+            floor_rest = sum(remaining_prices[:remaining_slots])
+            return projected_total + floor_rest <= max_total_glass_price_ttc + 0.01
+
+        def add_item(item: InventoryItem):
+            nonlocal running_total
+            selected.append(item)
+            selected_ids.add(item.wine_id)
+            running_total += glass_price(item)
+
         for section in target_sections:
             candidates = sorted(
                 grouped[section],
-                key=lambda i: (i.quantity, i.purchase_price_ht),
-                reverse=True,
+                key=select_sort_key,
             )
-            for item in candidates[:max_per_section]:
+            section_added = 0
+            for item in candidates:
                 if item.wine_id in selected_ids:
                     continue
-                selected.append(item)
-                selected_ids.add(item.wine_id)
+                if soft_max_glass_price_ttc is not None and glass_price(item) > soft_max_glass_price_ttc:
+                    continue
+                if not can_add_candidate(item):
+                    continue
+                add_item(item)
+                section_added += 1
                 if len(selected) >= max_total:
+                    selected.sort(key=lambda i: (self._section_rank(self._map_section(i.wine_color)), i.producer, i.wine_name))
                     return selected
+                if section_added >= max_per_section:
+                    break
+
+            # If nothing affordable was found in this section, fall back to the cheapest candidate.
+            if section_added == 0 and candidates and len(selected) < max_total:
+                fallback = candidates[0]
+                if fallback.wine_id not in selected_ids:
+                    add_item(fallback)
+                    if len(selected) >= max_total:
+                        selected.sort(key=lambda i: (self._section_rank(self._map_section(i.wine_color)), i.producer, i.wine_name))
+                        return selected
 
         remaining = sorted(
-            [item for item in collapsed_inventory if item.wine_id not in selected_ids],
-            key=lambda i: (i.quantity, i.purchase_price_ht),
-            reverse=True,
+            [item for item in eligible_inventory if item.wine_id not in selected_ids],
+            key=select_sort_key,
         )
         for item in remaining:
-            selected.append(item)
+            if soft_max_glass_price_ttc is not None and glass_price(item) > soft_max_glass_price_ttc:
+                continue
+            if not can_add_candidate(item):
+                continue
+            add_item(item)
             if len(selected) >= max_total:
                 break
+
+        # If budget constraints were too restrictive, complete the list with cheapest available references.
+        if len(selected) < max_total:
+            fallback_remaining = sorted(
+                [item for item in eligible_inventory if item.wine_id not in selected_ids],
+                key=lambda i: (glass_price(i), -float(i.quantity), i.purchase_price_ht),
+            )
+            for item in fallback_remaining:
+                add_item(item)
+                if len(selected) >= max_total:
+                    break
+
+        # Final budget repair pass: swap expensive picks for cheaper alternatives when possible.
+        if max_total_glass_price_ttc is not None and selected:
+            selected = self._repair_selection_budget(
+                selected=selected,
+                candidates=eligible_inventory,
+                pricing_by_wine_id=pricing_by_wine_id,
+                budget=max_total_glass_price_ttc,
+            )
+
+        selected.sort(key=lambda i: (self._section_rank(self._map_section(i.wine_color)), i.producer, i.wine_name))
         return selected
+
+    def _repair_selection_budget(
+        self,
+        selected: list[InventoryItem],
+        candidates: list[InventoryItem],
+        pricing_by_wine_id: dict[int, float],
+        budget: float,
+    ) -> list[InventoryItem]:
+        selected = selected[:]
+        selected_ids = {item.wine_id for item in selected}
+
+        def price(item: InventoryItem) -> float:
+            return pricing_by_wine_id.get(item.wine_id, 0.0)
+
+        current_total = sum(price(item) for item in selected)
+        if current_total <= budget + 0.01:
+            return selected
+
+        safeguard = 0
+        while current_total > budget + 0.01 and safeguard < 50:
+            safeguard += 1
+            best_swap: tuple[int, InventoryItem, float] | None = None
+            for idx, selected_item in enumerate(selected):
+                selected_section = self._map_section(selected_item.wine_color)
+                selected_price = price(selected_item)
+                for cand in candidates:
+                    if cand.wine_id in selected_ids:
+                        continue
+                    cand_price = price(cand)
+                    if cand_price >= selected_price:
+                        continue
+                    # Prefer section-preserving swaps to keep pairing progression coherent.
+                    section_bonus = 0.05 if self._map_section(cand.wine_color) == selected_section else 0.0
+                    gain = (selected_price - cand_price) + section_bonus
+                    if best_swap is None or gain > best_swap[2]:
+                        best_swap = (idx, cand, gain)
+            if best_swap is None:
+                break
+
+            idx, replacement, _ = best_swap
+            removed = selected[idx]
+            selected_ids.remove(removed.wine_id)
+            selected[idx] = replacement
+            selected_ids.add(replacement.wine_id)
+            current_total = sum(price(item) for item in selected)
+
+        return selected
+
+    def _compute_glass_total_ttc(
+        self,
+        inventory: list[InventoryItem],
+        vat_country: VatCountry,
+    ) -> float:
+        total = 0.0
+        for item in inventory:
+            total += calculate_restaurant_price_ttc(
+                item.purchase_price_ht,
+                vat_country=vat_country,
+            ).glass_price_ttc
+        return round(total, 2)
+
+    def _build_one_shot_card_title(self, occasion: Occasion) -> str:
+        labels = {
+            Occasion.CHRISTMAS: "Christmas Special Food Pairing Card",
+            Occasion.VALENTINE: "Valentine Special Food Pairing Card",
+            Occasion.EASTER: "Easter Special Food Pairing Card",
+            Occasion.BANQUET: "Banquet Special Food Pairing Card",
+        }
+        return labels.get(occasion, "Special Food Pairing Card")
 
     def _build_by_the_glass_suggestions(
         self,
@@ -993,35 +1180,87 @@ class WineCardService:
         lines.append("_Glass serving volume: 12cl • Bottle volume: 75cl_")
         lines.append("")
 
-        section_title = {
-            "rose": "Rosé",
-            "sparkling": "Sparkling",
-            "white": "White",
-            "red": "Red",
-            "dessert": "Dessert",
-            "fortified": "Fortified",
-        }
+        glass_selection = [item for item in menu_items if item.display_mode in ("glass", "both")]
+        bottle_selection = [item for item in menu_items if item.display_mode in ("bottle", "both")]
 
-        for section in SECTION_ORDER:
-            section_items = [item for item in menu_items if item.section == section]
-            if not section_items:
-                continue
-            lines.append(f"## {section_title.get(section, section.title())}")
-            lines.append("")
-            lines.append("| Wine | Origin | Vintage | 12cl TTC | Bottle TTC |")
-            lines.append("|---|---|:---:|---:|---:|")
-            for item in section_items:
+        lines.append("## By-the-Glass Selection")
+        lines.append("")
+        if glass_selection:
+            lines.append("| Wine | Origin | Vintage | 12cl TTC |")
+            lines.append("|---|---|:---:|---:|")
+            for item in glass_selection:
                 location_parts = [item.appellation, item.region, item.country]
                 location = " / ".join(part for part in location_parts if part) or "—"
                 vintage = item.vintage or "NV"
                 wine_name = f"{item.producer} — {item.wine_name}"
-                # Display rules: if item.display_mode == 'glass' show only glass price,
-                # if 'bottle' show only bottle price, else show both.
-                glass_cell = f"€{item.glass_price_ttc:.2f}" if item.display_mode in ("glass", "both") else ""
-                bottle_cell = f"€{item.selling_price_ttc:.2f}" if item.display_mode in ("bottle", "both") else ""
+                lines.append(f"| {wine_name} | {location} | {vintage} | €{item.glass_price_ttc:.2f} |")
+        else:
+            lines.append("_No by-the-glass wines currently selected._")
+        lines.append("")
+
+        lines.append("## Bottle Selection")
+        lines.append("")
+        if bottle_selection:
+            lines.append("| Wine | Origin | Vintage | Bottle TTC |")
+            lines.append("|---|---|:---:|---:|")
+            for item in bottle_selection:
+                location_parts = [item.appellation, item.region, item.country]
+                location = " / ".join(part for part in location_parts if part) or "—"
+                vintage = item.vintage or "NV"
+                wine_name = f"{item.producer} — {item.wine_name}"
+                lines.append(f"| {wine_name} | {location} | {vintage} | €{item.selling_price_ttc:.2f} |")
+        else:
+            lines.append("_No bottle-only wines currently selected._")
+        lines.append("")
+
+        lines.append("---")
+        lines.append("")
+        lines.append("**Prix TTC service compris.**")
+        lines.append("**L’abus d’alcool est dangereux pour la santé, à consommer avec modération.**")
+        lines.append("**La vente d’alcool est interdite aux mineurs.**")
+
+        return "\n".join(lines)
+
+    def _build_one_shot_menu_markdown(
+        self,
+        menu_items: list[MenuItem],
+        season: Season,
+        restaurant_name: str,
+        one_shot_title: str | None = None,
+        one_shot_forfait_total_ttc: float | None = None,
+    ) -> str:
+        lines: list[str] = []
+        vat_country = menu_items[0].vat_country.value if menu_items else VatCountry.LU.value
+        vat_rate = menu_items[0].vat_rate if menu_items else 0.17
+        lines.append(f"# {restaurant_name}")
+        lines.append("")
+        lines.append(f"## {one_shot_title or 'Special Food Pairing Card'}")
+        lines.append("")
+        lines.append(f"_Season: {season.value.title()}_")
+        lines.append("")
+        lines.append("_Single-event format: wine + 12cl price + concise tasting note._")
+        lines.append(f"_VAT country: {vat_country} ({round(vat_rate * 100)}%)_")
+        lines.append("")
+
+        if not menu_items:
+            lines.append("_No wines selected for this one-shot menu._")
+            lines.append("")
+        else:
+            lines.append("| Wine | Origin | Vintage | Tasting note | 12cl TTC |")
+            lines.append("|---|---|:---:|---|---:|")
+            for item in menu_items:
+                wine_name = f"{item.producer} — {item.wine_name}"
+                location_parts = [item.appellation, item.region, item.country]
+                location = " / ".join(part for part in location_parts if part) or "—"
+                vintage = item.vintage or "NV"
+                tasting_note = self._build_tasting_note(item)
                 lines.append(
-                    f"| {wine_name} | {location} | {vintage} | {glass_cell} | {bottle_cell} |"
+                    f"| {wine_name} | {location} | {vintage} | {tasting_note} | €{item.glass_price_ttc:.2f} |"
                 )
+            lines.append("")
+
+        if one_shot_forfait_total_ttc is not None:
+            lines.append(f"**Forfait accord mets: €{one_shot_forfait_total_ttc:.2f} TTC**")
             lines.append("")
 
         lines.append("---")
@@ -1031,6 +1270,25 @@ class WineCardService:
         lines.append("**La vente d’alcool est interdite aux mineurs.**")
 
         return "\n".join(lines)
+
+    def _build_tasting_note(self, item: MenuItem) -> str:
+        section = self._map_section(item.section)
+        profile_by_section = {
+            "sparkling": "Bulles fines, tension citronnee et finale nette a dominante crayeuse.",
+            "white": "Noyau de fruits frais, acidite equilibree et trame minerale precise.",
+            "rose": "Aromes de petits fruits rouges, belle fraicheur et finale seche et gourmande.",
+            "red": "Fruits noirs murs, tanins souples et touche epicee en finale.",
+            "dessert": "Fruit bien concentre, douceur soyeuse et acidite vive en soutien.",
+            "fortified": "Notes de fruits secs, epices chaudes et structure persistante.",
+        }
+        base_note = profile_by_section.get(
+            section,
+            "Profil fruite equilibre, avec de la fraicheur et une finale nette.",
+        )
+        origin_hint = item.appellation or item.region or item.country
+        if origin_hint:
+            return f"{base_note} Belle expression de {origin_hint}."
+        return base_note
 
     def _compute_pairing_budget(
         self,
@@ -1108,7 +1366,8 @@ class WineCardService:
                 "Editable menu markdown is provided separately as source of available wines.",
                 "",
                 "Presentation constraints for this one-shot menu:",
-                "- List by-the-glass selections first, then bottle-only selections.",
+                "- Use one-shot layout only: wine name + 12cl price + a short tasting note.",
+                "- Do not display bottle prices in the one-shot output.",
                 "- By-the-glass limits: 1 sparkling, 1 rosé, up to 2 whites, up to 2 reds, include 1 dessert if possible.",
                 "- For by-the-glass choices prefer non-oaky whites/rosés; mark oaky options only as substitutions.",
                 "- For each suggested wine, provide a one-line justification (pairing + short tasting note) and indicate substitution if stock risk exists.",
