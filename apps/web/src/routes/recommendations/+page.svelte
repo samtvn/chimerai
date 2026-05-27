@@ -30,10 +30,23 @@
     }
   }
 
-  function priorityBadge(score: number) {
-    if (score >= 8) return "badge-error";
-    if (score >= 5) return "badge-warning";
-    return "badge-info";
+  function recommendationBanner(index: number) {
+    if (index === 0) {
+      return {
+        label: "P1 · Handle First",
+        klass: "border border-rose-300 bg-rose-100 text-rose-900",
+      };
+    }
+    if (index < 3) {
+      return {
+        label: "P2 · Handle Soon",
+        klass: "border border-amber-300 bg-amber-100 text-amber-900",
+      };
+    }
+    return {
+      label: "P3 · Review",
+      klass: "border border-slate-300 bg-slate-100 text-slate-800",
+    };
   }
 
   $effect(() => {
@@ -70,7 +83,8 @@
     </div>
   {:else}
     <div class="flex flex-col gap-3">
-      {#each recommendations as rec (rec.id)}
+      {#each recommendations as rec, index (rec.id)}
+        {@const banner = recommendationBanner(index)}
         <div class="card bg-base-100 border border-primary-content">
           <div class="card-body p-4 flex flex-col gap-3">
             <div class="flex items-start justify-between gap-3">
@@ -89,6 +103,9 @@
                   </div>
                 </div>
               </div>
+              <span class="badge {banner.klass} badge-sm shrink-0">
+                {banner.label}
+              </span>
             </div>
 
             <p class="text-sm text-base-content/80 leading-relaxed">
@@ -97,19 +114,13 @@
 
             <div class="flex flex-wrap gap-2 text-xs text-base-content/60">
               <span class="bg-base-200 rounded-md px-2 py-1">
-                Quantity: <span class="font-medium text-base-content"
-                  >{rec.quantity}</span
-                >
+                Quantity: <span class="font-medium text-base-content">{rec.quantity}</span>
               </span>
               <span class="bg-base-200 rounded-md px-2 py-1">
-                Market Price: <span class="font-medium text-base-content"
-                  >€{rec.market_price.toFixed(2)}</span
-                >
+                Market Price: <span class="font-medium text-base-content">€{rec.market_price.toFixed(2)}</span>
               </span>
               <span class="bg-base-200 rounded-md px-2 py-1">
-                Total: <span class="font-medium text-base-content"
-                  >€{(rec.market_price * rec.quantity).toFixed(2)}</span
-                >
+                Total: <span class="font-medium text-base-content">€{(rec.market_price * rec.quantity).toFixed(2)}</span>
               </span>
               <span class="bg-base-200 rounded-md px-2 py-1">
                 {formatDate(rec.created_at)}
