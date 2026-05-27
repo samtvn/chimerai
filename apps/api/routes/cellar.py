@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.database.dependencies import get_db, get_read_db, get_demo_user_id
+from apps.api.database.dependencies import get_db, get_demo_user_id, get_read_db
 from apps.api.database.models.cellar import BottleStatus, Cellar
 from apps.api.database.models.transactions import Transaction, TransactionType
 from apps.api.database.models.wines import Wine
-from apps.api.database.repositories.wine_repository import WineRepository
 from apps.api.database.repositories.cellar_repository import CellarRepository
+from apps.api.database.repositories.wine_repository import WineRepository
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
@@ -144,9 +144,7 @@ async def delete_cellar_reference(wine_id: int, db: AsyncSession = Depends(get_d
         replacements = (await db.execute(replacements_query)).scalars().all()
 
     await db.execute(
-        delete(Cellar).where(
-            and_(Cellar.user_id == user_id, Cellar.wine_id == wine_id)
-        )
+        delete(Cellar).where(and_(Cellar.user_id == user_id, Cellar.wine_id == wine_id))
     )
     await db.execute(
         delete(Transaction).where(

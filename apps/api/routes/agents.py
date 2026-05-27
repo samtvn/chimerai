@@ -2,14 +2,14 @@
 Agent Routes
 ============
 Manual trigger endpoint for the orchestrator.
-The automatic trigger happens via the event_bus listener in runner.py.
+The automatic trigger happens via the event_bus listener in events/handlers/orchestrator_trigger.py.
 """
 
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
 
-from apps.api.agents.runner import run_once
-from apps.api.agents.event_bus import AgentEvent
+from apps.api.events.bus import AgentEvent
+from apps.api.events.handlers.orchestrator_trigger import run_once
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -24,7 +24,9 @@ async def run_agent(request: TriggerRequest, background_tasks: BackgroundTasks):
     Manually trigger the orchestrator.
     The agent runs in the background; events stream via SSE at /sse/stream.
     """
-    background_tasks.add_task(run_once, AgentEvent(source="api", type="manual", message=request.trigger))
+    background_tasks.add_task(
+        run_once, AgentEvent(source="api", type="analysis_run", message=request.trigger)
+    )
     return {"status": "started", "trigger": request.trigger}
 
 
@@ -34,5 +36,5 @@ async def run_agent_sync(request: TriggerRequest):
     Trigger the orchestrator and wait for the final response.
     Useful for testing. For production use /run (background) + SSE stream.
     """
-    result = await run_once(AgentEvent(source="api", type="manual", message=request.trigger))
+    result = await run_once(AgentEvent(source="api", type="analysis_run", message=request.trigger))
     return {"status": "completed", "result": result}

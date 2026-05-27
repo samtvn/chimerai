@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from langchain_core.messages import AIMessage
 
-from apps.api.agents.event_bus import AgentEvent, event_bus
+from apps.api.events.bus import AgentEvent, event_bus
 
 logger = logging.getLogger(__name__)
 

@@ -7,13 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.agents.event_bus import AgentEvent, event_bus
 from apps.api.database.dependencies import get_db, get_demo_user_id, get_read_db
 from apps.api.database.models.cellar import BottleStatus
 from apps.api.database.models.transactions import TransactionType
 from apps.api.database.repositories.cellar_repository import CellarRepository
 from apps.api.database.repositories.transactions_repository import TransactionRepository
 from apps.api.database.repositories.wine_repository import WineRepository
+from apps.api.events.bus import AgentEvent, event_bus
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 
@@ -121,6 +121,20 @@ async def create_transaction(body: TransactionCreate, db: AsyncSession = Depends
             AgentEvent(
                 source="transactions",
                 type="wine_sold",
+                message=json.dumps(
+                    {
+                        "wine_id": body.wine_id,
+                        "quantity": body.quantity,
+                        "type": body.type.value,
+                    }
+                ),
+            )
+        )
+    elif body.type == TransactionType.PURCHASE:
+        await event_bus.publish(
+            AgentEvent(
+                source="transactions",
+                type="wine_added",
                 message=json.dumps(
                     {
                         "wine_id": body.wine_id,

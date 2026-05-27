@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from apps.api.database.dependencies import get_db, get_read_db, get_demo_user_id
 from apps.api.database.models.alerts import AlertSeverity
 from apps.api.database.repositories.alert_repository import AlertRepository
-from apps.api.agents.event_bus import event_bus, AgentEvent
+from apps.api.events.bus import AgentEvent, event_bus
 
 router = APIRouter(prefix="/api", tags=["inventory"])
 

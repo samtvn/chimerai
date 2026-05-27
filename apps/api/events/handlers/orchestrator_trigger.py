@@ -1,30 +1,19 @@
-"""
-Agent Runner
-============
-Bridges the FastAPI event system to the orchestrator.
-
-Two entry points:
-  1. run_once(trigger)     — called manually or by the API route
-  2. run_event_listener()  — background task, fires on "wine_sold" events from event_bus
-"""
-
 import asyncio
 import json
 import logging
 import uuid
 from datetime import datetime, timezone
 
-from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.agents.event_bus import AgentEvent, event_bus
-from apps.api.agents.Orchestrator.new_orchestrator import Orchestrator
 from apps.api.agents.Orchestrator.checkpointer import get_checkpointer
-from apps.api.database.repositories.cellar_repository import CellarRepository
+from apps.api.agents.Orchestrator.new_orchestrator import Orchestrator
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.dependencies import get_demo_user_id
 from apps.api.database.models.agent_run_session import AgentRunSession, RunSessionStatus
+from apps.api.database.repositories.cellar_repository import CellarRepository
+from apps.api.events.bus import AgentEvent, event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +30,6 @@ async def _get_or_create_session(db: AsyncSession, user_id: str, trigger: str):
     Returns:
         (thread_id, session, should_resume_from_checkpoint)
     """
-    # Look up the latest session for this user
     result = await db.execute(
         select(AgentRunSession)
         .where(AgentRunSession.user_id == user_id)
@@ -50,21 +38,16 @@ async def _get_or_create_session(db: AsyncSession, user_id: str, trigger: str):
     )
     latest_session = result.scalars().first()
 
-    # If there's a failed or running session, reuse it
     if latest_session and latest_session.status in (
         RunSessionStatus.FAILED,
         RunSessionStatus.RUNNING,
     ):
-        # Update the session status back to RUNNING and timestamp
         latest_session.status = RunSessionStatus.RUNNING
         latest_session.updated_at = datetime.now(timezone.utc)
         db.add(latest_session)
         await db.commit()
-
-        # Return the existing thread_id; LangGraph will load from checkpoint
         return latest_session.thread_id, latest_session, True
 
-    # Create a new session with a fresh thread_id
     new_thread_id = f"orchestrator-{user_id}-{uuid.uuid4().hex[:8]}"
     new_session = AgentRunSession(
         user_id=user_id,
@@ -90,9 +73,7 @@ async def _update_session_status(
 
 def _build_graph_input(agent_event: AgentEvent):
     """Seed a new graph run with fresh routing state while keeping checkpointed analysis."""
-    import uuid
-
-    from apps.api.agents.events import AnalysisRunEvent, WineSoldEvent
+    from apps.api.events.schemas import AnalysisRunEvent, WineSoldEvent
 
     if agent_event.type == "wine_sold":
         wine_ids: list[str] = []
@@ -107,7 +88,7 @@ def _build_graph_input(agent_event: AgentEvent):
             if isinstance(payload, dict):
                 raw_wine_id = payload.get("wine_id") or payload.get("wine_ids")
                 if isinstance(raw_wine_id, list):
-                    wine_ids = [str(wine_id) for wine_id in raw_wine_id if wine_id is not None]
+                    wine_ids = [str(wid) for wid in raw_wine_id if wid is not None]
                 elif raw_wine_id is not None:
                     wine_ids = [str(raw_wine_id)]
                 quantity = int(payload.get("quantity", quantity) or quantity)
@@ -115,7 +96,10 @@ def _build_graph_input(agent_event: AgentEvent):
                 wine_ids = [agent_event.message]
 
         trigger_ev = WineSoldEvent(wine_ids=wine_ids, quantity=quantity)
+    elif agent_event.type == "analysis_run":
+        trigger_ev = AnalysisRunEvent(agent_name="orchestrator", analysis_id=uuid.uuid4().hex)
     else:
+        # For unknown event types, default to an analysis_run
         trigger_ev = AnalysisRunEvent(agent_name="orchestrator", analysis_id=uuid.uuid4().hex)
 
     return {
@@ -155,8 +139,9 @@ async def run_once(agent_event: AgentEvent) -> str:
         )
 
         try:
-            # Get or create session (checkpoint recovery happens here)
-            thread_id, session, resuming = await _get_or_create_session(db, user_id, f"Triggered: {agent_event.type}")
+            thread_id, session, resuming = await _get_or_create_session(
+                db, user_id, f"Triggered: {agent_event.type}"
+            )
 
             if resuming:
                 await event_bus.publish(
@@ -172,24 +157,20 @@ async def run_once(agent_event: AgentEvent) -> str:
             async with get_checkpointer() as checkpointer:
                 cellar_repo = CellarRepository(db)
                 from uuid import UUID
-                agent = Orchestrator(cellar_repo=cellar_repo, user_id=UUID(user_id), checkpointer=checkpointer).graph
-                config = {"configurable": {"thread_id": thread_id}}
-                final_message = ""
 
-                # If resuming, don't send a new message; LangGraph will resume from checkpoint
+                agent = Orchestrator(
+                    cellar_repo=cellar_repo, user_id=UUID(user_id), checkpointer=checkpointer
+                ).graph
+                config = {"configurable": {"thread_id": thread_id}}
+
                 input_data = _build_graph_input(agent_event)
 
-                async for event in agent.astream_events(
-                    input_data,
-                    config=config,
-                    version="v2",
-                ):
-                    pass  # We removed _handle_stream_event logging since we emit manually in the orchestrator nodes now
+                async for event in agent.astream_events(input_data, config=config, version="v2"):
+                    pass
 
                 final_state = await agent.aget_state(config)
                 final_message = final_state.values.get("validated_analysis", "Workflow completed.")
 
-                # Mark session as completed
                 await _update_session_status(db, session, RunSessionStatus.COMPLETED)
 
                 await event_bus.publish(
@@ -207,7 +188,6 @@ async def run_once(agent_event: AgentEvent) -> str:
             error_msg = f"Orchestrator error: {str(e)}"
             logger.error(error_msg, exc_info=True)
 
-            # Mark session as failed so it can be resumed next time
             try:
                 async with AsyncSessionLocal() as db_retry:
                     user_id_retry = str(await get_demo_user_id(db_retry))
@@ -236,38 +216,33 @@ async def run_once(agent_event: AgentEvent) -> str:
             return error_msg
 
 
-
 async def run_event_listener() -> None:
     """
     Background task. Subscribes to the event_bus and fires the orchestrator
-    whenever a 'wine_sold' event is published.
+    whenever a 'wine_sold' or 'analysis_run' event is published.
 
     Includes exponential backoff restart logic so one crash doesn't kill
     the listener permanently.
-
-    Started in main.py lifespan alongside the existing listeners.
     """
-    retry_delay = 1  # seconds
-    max_retry_delay = 60  # seconds
+    retry_delay = 1
+    max_retry_delay = 60
 
     while True:
         try:
             queue = event_bus.subscribe()
-            logger.info("Agent runner: listening for wine_sold events")
-            retry_delay = 1  # Reset backoff on successful subscription
+            logger.info("Agent runner: listening for events")
+            retry_delay = 1
 
             while True:
                 agent_event = await queue.get()
 
-                if agent_event.type == "wine_sold":
-                    logger.info(f"Agent runner: received wine_sold event — {agent_event.message}")
+                if agent_event.type in ("wine_sold", "analysis_run"):
+                    logger.info(f"Agent runner: received {agent_event.type} event — {agent_event.message}")
                     await run_once(agent_event)
 
         except Exception as e:
             logger.error(f"Agent runner event listener error: {e}", exc_info=True)
             logger.info(f"Restarting listener in {retry_delay} seconds...")
-
-            # Exponential backoff: double the delay up to max_retry_delay
             await asyncio.sleep(retry_delay)
             retry_delay = min(retry_delay * 2, max_retry_delay)
 

@@ -17,7 +17,7 @@ from routes.sse import router as sse_router
 from routes.summary import router as summary_router
 from routes.transactions import router as transactions_router
 from routes.wines import router as wines_router
-from apps.api.agents.runner import run_event_listener
+from apps.api.events.handlers.orchestrator_trigger import run_event_listener
 
 from routes.recommendations import router as recommendations_router
 from WineCardAgent.routes import router as wine_card_router

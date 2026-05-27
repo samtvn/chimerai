@@ -6,7 +6,7 @@ import asyncio
 import json
 from datetime import datetime, timezone
 
-from agents.event_bus import AgentEvent, event_bus
+from apps.api.events.bus import AgentEvent, event_bus
 from apps.api.database.database import AsyncReadSessionLocal
 from apps.api.database.dependencies import get_demo_user_id
 from .models import Season, TriggerReason, VatCountry, WineCardTriggerReport
