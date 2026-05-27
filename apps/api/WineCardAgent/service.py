@@ -265,6 +265,7 @@ class WineCardService:
                 vat_country=vat_country,
                 max_total_glass_price_ttc=suggested_pairing_price_ttc,
                 soft_max_glass_price_ttc=soft_max_glass_price,
+                target_total_glass_price_ttc=suggested_pairing_price_ttc,
             )
         else:
             selected_inventory = self._select_inventory_for_occasion(
@@ -388,6 +389,8 @@ class WineCardService:
             summary += f" Suggested pairing price: €{suggested_pairing_price_ttc:.2f} TTC."
             if selected_glass_total_ttc > suggested_pairing_price_ttc:
                 summary += " Budget alert: selected wines exceed target; review one expensive reference."
+            elif selected_glass_total_ttc < (suggested_pairing_price_ttc * 0.85):
+                summary += " Budget alert: selected wines are too far below target; upgrade one or two references."
 
         return OneShotMenuResult(
             occasion=occasion,
@@ -927,6 +930,7 @@ class WineCardService:
         vat_country: VatCountry,
         max_total_glass_price_ttc: float | None = None,
         soft_max_glass_price_ttc: float | None = None,
+        target_total_glass_price_ttc: float | None = None,
     ) -> list[InventoryItem]:
         collapsed_inventory, _ = self._collapse_to_oldest_vintages(inventory)
         grouped: dict[str, list[InventoryItem]] = {section: [] for section in target_sections}
@@ -945,9 +949,13 @@ class WineCardService:
             return pricing_by_wine_id.get(item.wine_id, 0.0)
 
         def select_sort_key(item: InventoryItem) -> tuple[float, float, float]:
-            # In budget mode, prioritize affordable glasses first.
+            if max_total_glass_price_ttc is not None and target_total_glass_price_ttc is not None:
+                per_wine_target = target_total_glass_price_ttc / max(1, max_total)
+                distance = abs(glass_price(item) - per_wine_target)
+                return (distance, -glass_price(item), -float(item.quantity))
+            # In budget mode without explicit target, still avoid over-cheap selections.
             if max_total_glass_price_ttc is not None:
-                return (glass_price(item), -float(item.quantity), item.purchase_price_ht)
+                return (-glass_price(item), -float(item.quantity), item.purchase_price_ht)
             return (-float(item.quantity), -item.purchase_price_ht, glass_price(item))
 
         selected: list[InventoryItem] = []
@@ -1043,6 +1051,15 @@ class WineCardService:
                 pricing_by_wine_id=pricing_by_wine_id,
                 budget=max_total_glass_price_ttc,
             )
+            if target_total_glass_price_ttc is not None:
+                min_target = round(target_total_glass_price_ttc * 0.85, 2)
+                selected = self._raise_selection_toward_budget(
+                    selected=selected,
+                    candidates=eligible_inventory,
+                    pricing_by_wine_id=pricing_by_wine_id,
+                    min_target=min_target,
+                    budget=max_total_glass_price_ttc,
+                )
 
         selected.sort(key=lambda i: (self._section_rank(self._map_section(i.wine_color)), i.producer, i.wine_name))
         return selected
@@ -1106,6 +1123,58 @@ class WineCardService:
                 vat_country=vat_country,
             ).glass_price_ttc
         return round(total, 2)
+
+    def _raise_selection_toward_budget(
+        self,
+        selected: list[InventoryItem],
+        candidates: list[InventoryItem],
+        pricing_by_wine_id: dict[int, float],
+        min_target: float,
+        budget: float,
+    ) -> list[InventoryItem]:
+        selected = selected[:]
+        selected_ids = {item.wine_id for item in selected}
+
+        def price(item: InventoryItem) -> float:
+            return pricing_by_wine_id.get(item.wine_id, 0.0)
+
+        current_total = sum(price(item) for item in selected)
+        if current_total >= min_target - 0.01:
+            return selected
+
+        safeguard = 0
+        while current_total < min_target - 0.01 and safeguard < 80:
+            safeguard += 1
+            best_swap: tuple[int, InventoryItem, float, float] | None = None
+            for idx, selected_item in enumerate(selected):
+                selected_section = self._map_section(selected_item.wine_color)
+                selected_price = price(selected_item)
+                for cand in candidates:
+                    if cand.wine_id in selected_ids:
+                        continue
+                    cand_price = price(cand)
+                    delta = cand_price - selected_price
+                    if delta <= 0:
+                        continue
+                    projected_total = current_total + delta
+                    if projected_total > budget + 0.01:
+                        continue
+                    # Prefer same-section upgrades and the highest achievable total.
+                    section_bonus = 0.10 if self._map_section(cand.wine_color) == selected_section else 0.0
+                    score = projected_total + section_bonus
+                    if best_swap is None or score > best_swap[3]:
+                        best_swap = (idx, cand, delta, score)
+            if best_swap is None:
+                break
+
+            idx, replacement, _, _ = best_swap
+            removed = selected[idx]
+            selected_ids.remove(removed.wine_id)
+            selected[idx] = replacement
+            selected_ids.add(replacement.wine_id)
+            current_total = sum(price(item) for item in selected)
+
+        return selected
 
     def _build_one_shot_card_title(self, occasion: Occasion) -> str:
         labels = {
@@ -1215,7 +1284,6 @@ class WineCardService:
 
         lines.append("---")
         lines.append("")
-        lines.append("**Prix TTC service compris.**")
         lines.append("**L’abus d’alcool est dangereux pour la santé, à consommer avec modération.**")
         lines.append("**La vente d’alcool est interdite aux mineurs.**")
 
@@ -1236,17 +1304,17 @@ class WineCardService:
         lines.append("")
         lines.append(f"## {one_shot_title or 'Special Food Pairing Card'}")
         lines.append("")
-        lines.append(f"_Season: {season.value.title()}_")
+        lines.append(f"_Saison : {season.value.title()}_")
         lines.append("")
-        lines.append("_Single-event format: wine + 12cl price + concise tasting note._")
+        lines.append("_Format one-shot : vin + prix 12cl + note de dégustation concise._")
         lines.append(f"_VAT country: {vat_country} ({round(vat_rate * 100)}%)_")
         lines.append("")
 
         if not menu_items:
-            lines.append("_No wines selected for this one-shot menu._")
+            lines.append("_Aucun vin sélectionné pour ce menu one-shot._")
             lines.append("")
         else:
-            lines.append("| Wine | Origin | Vintage | Tasting note | 12cl TTC |")
+            lines.append("| Vin | Origine | Millésime | Note de dégustation | 12cl TTC |")
             lines.append("|---|---|:---:|---|---:|")
             for item in menu_items:
                 wine_name = f"{item.producer} — {item.wine_name}"
@@ -1273,22 +1341,57 @@ class WineCardService:
 
     def _build_tasting_note(self, item: MenuItem) -> str:
         section = self._map_section(item.section)
-        profile_by_section = {
-            "sparkling": "Bulles fines, tension citronnee et finale nette a dominante crayeuse.",
-            "white": "Noyau de fruits frais, acidite equilibree et trame minerale precise.",
-            "rose": "Aromes de petits fruits rouges, belle fraicheur et finale seche et gourmande.",
-            "red": "Fruits noirs murs, tanins souples et touche epicee en finale.",
-            "dessert": "Fruit bien concentre, douceur soyeuse et acidite vive en soutien.",
-            "fortified": "Notes de fruits secs, epices chaudes et structure persistante.",
+        profile_by_section: dict[str, list[tuple[str, str, str]]] = {
+            "sparkling": [
+                ("agrumes confits et fleur blanche", "attaque vive, bulle fine et matière droite", "allonge saline et crayeuse"),
+                ("zeste de citron et pomme fraîche", "bouche tendue, mousse délicate", "finale nette sur une pointe iodée"),
+                ("fruits blancs et brioche légère", "texture élégante et profil ciselé", "persistance fraîche et minérale"),
+            ],
+            "white": [
+                ("poire fraîche et fleurs de vigne", "bouche précise, acidité bien intégrée", "finale minérale et sapide"),
+                ("zeste d'agrumes et fruit à noyau", "attaque franche, texture soyeuse", "retour salin, longueur nette"),
+                ("fruits blancs mûrs et notes anisées", "milieu de bouche droit, trame fraîche", "finale persistante et élégante"),
+            ],
+            "rose": [
+                ("groseille et fraise des bois", "bouche tonique, fruit croquant", "finale sèche et désaltérante"),
+                ("fruits rouges frais et zeste d'orange", "attaque souple, tension régulière", "allonge vive et nette"),
+                ("pêche blanche et petits fruits rouges", "matière légère, équilibre précis", "finale fraîche, très digeste"),
+            ],
+            "red": [
+                ("cerise noire et mûre", "bouche ample, tanins fondus", "finale épicée et persistante"),
+                ("fruits noirs mûrs et violette", "structure souple, matière veloutée", "retour poivré élégant"),
+                ("griotte et réglisse douce", "attaque pleine, trame tannique maîtrisée", "finale longue sur les épices"),
+            ],
+            "dessert": [
+                ("abricot confit et miel fin", "bouche onctueuse, sucre bien équilibré", "finale fraîche et précise"),
+                ("fruits jaunes mûrs et écorce d'orange", "texture généreuse, tension discrète", "allonge nette sans lourdeur"),
+                ("coing rôti et fruits secs", "milieu de bouche ample, relief aromatique", "finale persistante et harmonieuse"),
+            ],
+            "fortified": [
+                ("noix, figue sèche et épices douces", "bouche ample, matière enveloppante", "finale chaleureuse et persistante"),
+                ("fruits secs et notes de rancio", "attaque riche, équilibre maîtrisé", "retour long sur les épices"),
+                ("datte, caramel fin et zestes confits", "structure dense mais nette", "finale profonde et élégante"),
+            ],
         }
-        base_note = profile_by_section.get(
-            section,
-            "Profil fruite equilibre, avec de la fraicheur et une finale nette.",
-        )
+        fallback_profiles = [
+            ("fruits frais et fleurs blanches", "bouche équilibrée, texture souple", "finale nette et harmonieuse"),
+            ("nez discret de fruits mûrs", "attaque droite, matière précise", "allonge fraîche et régulière"),
+        ]
+
+        note_key = "|".join([item.producer or "", item.wine_name or "", item.vintage or "NV"])
+        seed = sum(ord(char) for char in note_key)
+        candidates = profile_by_section.get(section, fallback_profiles)
+        nez, bouche, finale = candidates[seed % len(candidates)]
         origin_hint = item.appellation or item.region or item.country
         if origin_hint:
-            return f"{base_note} Belle expression de {origin_hint}."
-        return base_note
+            origin_sentences = [
+                f"Le terroir de {origin_hint} apporte une vraie signature.",
+                f"L'origine {origin_hint} s'affirme avec justesse.",
+                f"L'identité de {origin_hint} reste lisible du nez à la finale.",
+            ]
+            origin_sentence = origin_sentences[(seed // 7) % len(origin_sentences)]
+            return f"Nez de {nez}. Bouche {bouche}. Finale {finale}. {origin_sentence}"
+        return f"Nez de {nez}. Bouche {bouche}. Finale {finale}."
 
     def _compute_pairing_budget(
         self,
@@ -1368,7 +1471,7 @@ class WineCardService:
                 "Presentation constraints for this one-shot menu:",
                 "- Use one-shot layout only: wine name + 12cl price + a short tasting note.",
                 "- Do not display bottle prices in the one-shot output.",
-                "- By-the-glass limits: 1 sparkling, 1 rosé, up to 2 whites, up to 2 reds, include 1 dessert if possible.",
+                "- By-the-glass limits: 1 sparkling, 1 rosé, up to 2 whites, up to 2 reds, include 1 dessert or fortified wine if possible.",
                 "- For by-the-glass choices prefer non-oaky whites/rosés; mark oaky options only as substitutions.",
                 "- For each suggested wine, provide a one-line justification (pairing + short tasting note) and indicate substitution if stock risk exists.",
             ]

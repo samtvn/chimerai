@@ -65,22 +65,63 @@
   }
 
   function buildOneShotTastingNote(item: {
+    producer?: string | null;
+    wine_name?: string | null;
+    vintage?: string | null;
     section: string;
     appellation?: string | null;
     region?: string | null;
     country?: string | null;
   }): string {
-    const profileBySection: Record<string, string> = {
-      sparkling: "Bulles fines, tension citronnee et finale nette a dominante crayeuse.",
-      white: "Noyau de fruits frais, acidite equilibree et trame minerale precise.",
-      rose: "Aromes de petits fruits rouges, belle fraicheur et finale seche et gourmande.",
-      red: "Fruits noirs murs, tanins souples et touche epicee en finale.",
-      dessert: "Fruit bien concentre, douceur soyeuse et acidite vive en soutien.",
-      fortified: "Notes de fruits secs, epices chaudes et structure persistante.",
+    const profileBySection: Record<string, Array<[string, string, string]>> = {
+      sparkling: [
+        ["agrumes confits et fleur blanche", "attaque vive, bulle fine et matière droite", "allonge saline et crayeuse"],
+        ["zeste de citron et pomme fraîche", "bouche tendue, mousse délicate", "finale nette sur une pointe iodée"],
+        ["fruits blancs et brioche légère", "texture élégante et profil ciselé", "persistance fraîche et minérale"],
+      ],
+      white: [
+        ["poire fraîche et fleurs de vigne", "bouche précise, acidité bien intégrée", "finale minérale et sapide"],
+        ["zeste d'agrumes et fruit à noyau", "attaque franche, texture soyeuse", "retour salin, longueur nette"],
+        ["fruits blancs mûrs et notes anisées", "milieu de bouche droit, trame fraîche", "finale persistante et élégante"],
+      ],
+      rose: [
+        ["groseille et fraise des bois", "bouche tonique, fruit croquant", "finale sèche et désaltérante"],
+        ["fruits rouges frais et zeste d'orange", "attaque souple, tension régulière", "allonge vive et nette"],
+        ["pêche blanche et petits fruits rouges", "matière légère, équilibre précis", "finale fraîche, très digeste"],
+      ],
+      red: [
+        ["cerise noire et mûre", "bouche ample, tanins fondus", "finale épicée et persistante"],
+        ["fruits noirs mûrs et violette", "structure souple, matière veloutée", "retour poivré élégant"],
+        ["griotte et réglisse douce", "attaque pleine, trame tannique maîtrisée", "finale longue sur les épices"],
+      ],
+      dessert: [
+        ["abricot confit et miel fin", "bouche onctueuse, sucre bien équilibré", "finale fraîche et précise"],
+        ["fruits jaunes mûrs et écorce d'orange", "texture généreuse, tension discrète", "allonge nette sans lourdeur"],
+        ["coing rôti et fruits secs", "milieu de bouche ample, relief aromatique", "finale persistante et harmonieuse"],
+      ],
+      fortified: [
+        ["noix, figue sèche et épices douces", "bouche ample, matière enveloppante", "finale chaleureuse et persistante"],
+        ["fruits secs et notes de rancio", "attaque riche, équilibre maîtrisé", "retour long sur les épices"],
+        ["datte, caramel fin et zestes confits", "structure dense mais nette", "finale profonde et élégante"],
+      ],
     };
-    const base = profileBySection[item.section] ?? "Profil fruite equilibre, avec de la fraicheur et une finale nette.";
+    const fallback: Array<[string, string, string]> = [
+      ["fruits frais et fleurs blanches", "bouche équilibrée, texture souple", "finale nette et harmonieuse"],
+      ["nez discret de fruits mûrs", "attaque droite, matière précise", "allonge fraîche et régulière"],
+    ];
+    const key = `${item.producer || ""}|${item.wine_name || ""}|${item.vintage || "NV"}`;
+    const seed = [...key].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const options = profileBySection[item.section] ?? fallback;
+    const [nez, bouche, finale] = options[seed % options.length];
     const origin = item.appellation || item.region || item.country;
-    return origin ? `${base} Belle expression de ${origin}.` : base;
+    if (!origin) return `Nez de ${nez}. Bouche ${bouche}. Finale ${finale}.`;
+    const originSentences = [
+      `Le terroir de ${origin} apporte une vraie signature.`,
+      `L'origine ${origin} s'affirme avec justesse.`,
+      `L'identité de ${origin} reste lisible du nez à la finale.`,
+    ];
+    const originSentence = originSentences[Math.floor(seed / 7) % originSentences.length];
+    return `Nez de ${nez}. Bouche ${bouche}. Finale ${finale}. ${originSentence}`;
   }
 
   function buildOneShotCardTitle(occasion: WineCardOccasion | null): string {
@@ -354,30 +395,33 @@
                 <div class="mt-1 text-[11px] text-base-content/60">
                   Showing first 8 wines · full editable version is in Menu Output below.
                 </div>
-                <div class="mt-2 overflow-x-auto">
+                <div class="mt-2">
                   {#if activeMenuLayout === "one-shot"}
-                    <table class="table table-xs w-full">
-                      <thead>
-                        <tr>
-                          <th>Section</th>
-                          <th>Wine</th>
-                          <th class="text-center">Vintage</th>
-                          <th>Tasting note</th>
-                          <th class="text-right">12cl TTC</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {#each exportedMenu.menu_items.slice(0, 8) as item}
-                          <tr>
-                            <td>{menuSectionLabel[item.section] ?? item.section}</td>
-                            <td class="font-medium">{item.producer} — {item.wine_name}</td>
-                            <td class="text-center">{item.vintage || "NV"}</td>
-                            <td class="text-xs text-base-content/70">{buildOneShotTastingNote(item)}</td>
-                            <td class="text-right font-medium">€{item.glass_price_ttc.toFixed(2)}</td>
-                          </tr>
-                        {/each}
-                      </tbody>
-                    </table>
+                    <div class="border-b border-base-300 pb-1 mb-1 flex items-end justify-between">
+                      <div class="text-xs font-medium text-base-content/70">Vin</div>
+                      <div class="text-xs font-medium text-base-content/70 text-right">12cl TTC</div>
+                    </div>
+                    <div class="flex flex-col">
+                      {#each exportedMenu.menu_items.slice(0, 8) as item}
+                        <div class="py-2 border-b border-base-200 flex items-start justify-between gap-4">
+                          <div class="min-w-0">
+                            <div class="font-semibold text-sm">
+                              {item.producer} — {item.wine_name}
+                              {#if item.vintage}<span class="font-medium"> ({item.vintage})</span>{/if}
+                            </div>
+                            <div class="text-xs text-base-content/65 mt-0.5">
+                              {[item.appellation, item.region, item.country].filter(Boolean).join(" / ") || "—"}
+                            </div>
+                            <div class="text-xs text-base-content/70 mt-1">
+                              {buildOneShotTastingNote(item)}
+                            </div>
+                          </div>
+                          <div class="font-semibold text-sm text-right whitespace-nowrap mt-0.5">
+                            €{item.glass_price_ttc.toFixed(2)}
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
                     {#if oneShotSelectedGlassTotal !== null}
                       <div class="mt-2 border-t border-base-300 pt-2 text-right text-sm font-semibold">
                         Forfait accord mets: €{oneShotSelectedGlassTotal.toFixed(2)} TTC
@@ -590,36 +634,35 @@
                 {activeMenuLayout === "one-shot" ? buildOneShotCardTitle(oneShotResultOccasion) : `Wine Menu — ${exportedMenu.season}`}
               </div>
               <div class="text-xs text-base-content/60 mt-1">
-                Prices TTC • Service compris
+                Prix TTC • Service compris
               </div>
             </div>
 
             {#if activeMenuLayout === "one-shot"}
-              <div class="overflow-x-auto">
-                <table class="table table-zebra table-sm w-full">
-                  <thead>
-                    <tr>
-                      <th>Section</th>
-                      <th>Wine</th>
-                      <th>Origin</th>
-                      <th class="text-center">Vintage</th>
-                      <th>Tasting note</th>
-                      <th class="text-right">12cl TTC</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each exportedMenu.menu_items as item}
-                      <tr>
-                        <td>{menuSectionLabel[item.section] ?? item.section}</td>
-                        <td class="font-medium">{item.producer} — {item.wine_name}</td>
-                        <td>{[item.appellation, item.region, item.country].filter(Boolean).join(" / ") || "—"}</td>
-                        <td class="text-center">{item.vintage || "NV"}</td>
-                        <td class="text-sm text-base-content/75">{buildOneShotTastingNote(item)}</td>
-                        <td class="text-right font-semibold">€{item.glass_price_ttc.toFixed(2)}</td>
-                      </tr>
-                    {/each}
-                  </tbody>
-                </table>
+              <div class="border-b border-base-300 pb-2 mb-1 flex items-end justify-between">
+                <div class="text-sm font-medium text-base-content/80">Vin</div>
+                <div class="text-sm font-medium text-base-content/80 text-right">12cl TTC</div>
+              </div>
+              <div class="flex flex-col">
+                {#each exportedMenu.menu_items as item}
+                  <div class="py-3 border-b border-base-200 flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                      <div class="font-semibold text-base">
+                        {item.producer} — {item.wine_name}
+                        {#if item.vintage}<span class="font-medium"> ({item.vintage})</span>{/if}
+                      </div>
+                      <div class="text-xs text-base-content/65 mt-0.5">
+                        {[item.appellation, item.region, item.country].filter(Boolean).join(" / ") || "—"}
+                      </div>
+                      <div class="text-xs text-base-content/75 mt-1">
+                        {buildOneShotTastingNote(item)}
+                      </div>
+                    </div>
+                    <div class="text-right whitespace-nowrap mt-0.5">
+                      <div class="font-semibold text-base">€{item.glass_price_ttc.toFixed(2)}</div>
+                    </div>
+                  </div>
+                {/each}
               </div>
               {#if oneShotSelectedGlassTotal !== null}
                 <div class="mt-3 border-t border-base-300 pt-3 text-right text-sm font-semibold">
@@ -659,7 +702,6 @@
             {/if}
 
             <div class="mt-4 pt-3 border-t border-base-300 text-xs text-base-content/70 space-y-1">
-              <div><span class="font-medium">Prix TTC service compris.</span></div>
               <div>L’abus d’alcool est dangereux pour la santé, à consommer avec modération.</div>
               <div>La vente d’alcool est interdite aux mineurs.</div>
             </div>

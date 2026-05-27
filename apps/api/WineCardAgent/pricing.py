@@ -32,10 +32,8 @@ def get_markup_coefficient(purchase_price_ht: float) -> float:
 def _round_menu_price(value: float) -> float:
     if value <= 0:
         return 0.0
-    if value < 12:
-        return round(value * 2) / 2
-    integer = int(round(value))
-    return round(max(integer - 0.1, 0.0), 2)
+    # Restaurant-style rounded pricing: nearest 0.50 EUR step.
+    return round(value * 2) / 2
 
 
 def get_vat_rate(country: VatCountry | str = DEFAULT_VAT_COUNTRY) -> float:
