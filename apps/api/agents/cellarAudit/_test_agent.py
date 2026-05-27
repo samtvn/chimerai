@@ -20,33 +20,46 @@ async def main():
 
     result = await run_inventory_audit(user_id, query)
 
-    print("=== InventoryAuditResult ===\n")
+    print("=== WineCellarAnalysis ===\n")
+    print(f"Total wine entries: {result.total_wines}")
+    print(f"Quantity observation: {result.quantity_observation}\n")
+
+    print(f"Overall assessment:\n  {result.overall_assessment}\n")
     print(f"Summary:\n  {result.summary}\n")
-    print(f"Has low stock:  {result.has_low_stock}")
-    print(f"Low-stock wines: {len(result.low_stock_wines)} wines")
-    if result.low_stock_wines:
-        for wine in result.low_stock_wines[:5]:
-            print(f"  - {wine}")
-        if len(result.low_stock_wines) > 5:
-            print(f"  ... and {len(result.low_stock_wines) - 5} more")
-    
-    print(f"\nDiversity gaps: {result.diversity_gaps if result.diversity_gaps else 'none'}\n")
-    
-    print(f"By color ({len(result.wines_by_color)} categories):")
-    for color, count in sorted(result.wines_by_color.items(), key=lambda x: -x[1])[:5]:
+
+    print(f"Diversity metrics:")
+    for k, v in result.diversity_metrics.items():
+        if not isinstance(v, dict):
+            print(f"  {k}: {v}")
+
+    print(f"\nDistribution by color:")
+    for color, count in sorted(
+        result.diversity_metrics.get("distribution_by_color", {}).items(), key=lambda x: -x[1]
+    ):
         print(f"  {color}: {count}")
-    
-    print(f"\nBy country ({len(result.wines_by_country)} countries):")
-    for country, count in sorted(result.wines_by_country.items(), key=lambda x: -x[1])[:5]:
+
+    print(f"\nDistribution by country (top 5):")
+    for country, count in sorted(
+        result.diversity_metrics.get("distribution_by_country", {}).items(), key=lambda x: -x[1]
+    )[:5]:
         print(f"  {country}: {count}")
-    
-    print(f"\nBy region ({len(result.wines_by_region)} regions):")
-    for region, count in sorted(result.wines_by_region.items(), key=lambda x: -x[1])[:5]:
-        print(f"  {region}: {count}")
-    
-    print(f"\nBy variety ({len(result.wines_by_variety)} varieties):")
-    for variety, count in sorted(result.wines_by_variety.items(), key=lambda x: -x[1])[:5]:
-        print(f"  {variety}: {count}")
+
+    print(f"\nStrengths ({len(result.strengths)}):")
+    for s in result.strengths[:5]:
+        print(f"  - {s}")
+
+    print(f"\nWeaknesses ({len(result.weaknesses)}):")
+    for w in result.weaknesses[:5]:
+        print(f"  - {w}")
+
+    print(f"\nRecommendations ({len(result.recommendations)}):")
+    for rec in result.recommendations:
+        print(f"  [{rec.criticality.value.upper()}] {rec.title}")
+        print(f"    {rec.description}")
+        print(f"    Price range: {rec.price_range} | Qty: {rec.quantity_to_buy}")
+        print(f"    Action: {rec.suggested_action}")
+        print(f"    Impact: {rec.estimated_impact}")
+        print()
 
 
 if __name__ == "__main__":

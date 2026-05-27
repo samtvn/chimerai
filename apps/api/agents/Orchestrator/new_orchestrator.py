@@ -12,12 +12,10 @@ from apps.api.agents.subagents.menu_generator import make_menu_generator_tool
 from apps.api.agents.subagents.market_research import make_market_research_tool
 from apps.api.agents.salesAnalyser.agent import run_sales_analysis
 from apps.api.agents.Orchestrator.orchestrator_router import orchestrator_router
-from apps.api.agents.cellarAudit.agent import run_inventory_audit
 from apps.api.events.bus import AgentEvent, event_bus
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.dependencies import get_demo_user_id
 from apps.api.database.repositories.recommendations_repository import RecommendationRepository
-from apps.api.agents.WineCellarAgent.service import WineCellarAnalysisService
 from apps.api.database.repositories.cellar_repository import CellarRepository
 from apps.api.WineCardAgent.service import WineCardService
 from apps.api.WineCardAgent.trigger_service import WineCardTriggerService
@@ -97,9 +95,8 @@ class Orchestrator:
                 "action",
                 f"Starting cellar analysis for user {self.user_id}.",
             )
-            query = state.get("analysis_query") or ""
-            async with AsyncSessionLocal() as session:
-                analysis = await WineCellarAnalysisService.analyze_cellar(CellarRepository(session))
+            query = state.get("analysis_query") or "Analyze the current cellar state and flag any concerns."
+            analysis = await run_inventory_audit(str(self.user_id), query)
             await self._publish_event(
                 "observation",
                 f"Cellar analysis completed successfully : {analysis.summary}",
