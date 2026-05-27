@@ -16,7 +16,7 @@ def get_url(env_var: str):
 PRIMARY_URL = get_url("DATABASE_URL")
 REPLICA_URL = get_url("DATABASE_RO_URL")
 
-engine = create_async_engine(PRIMARY_URL, echo=True, pool_pre_ping=True)
+engine = create_async_engine(PRIMARY_URL, echo=False, pool_pre_ping=True)
 replica_engine = create_async_engine(REPLICA_URL or PRIMARY_URL, pool_pre_ping=True)
 
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
