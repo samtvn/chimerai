@@ -1,13 +1,13 @@
 from typing import Any, Optional, TypedDict
-
-from apps.api.agents.events import Event
+from apps.api.agents.WineCellarAgent.models import Recommendation
+from apps.api.events import Event
 
 
 class OrchestratorState(TypedDict, total=False):
     """State for the Orchestrator LangGraph workflow"""
 
     trigger_event: Optional[Event]
-    cellar_analysis: Optional[Any]
+    cellar_analysis: Optional[list[Recommendation]]
     sales_analysis: Optional[Any]
     market_analysis: Optional[Any]
 

@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from datetime import datetime, timezone
+import json
 from .state import OrchestratorState
 import uuid
 from uuid import UUID
@@ -12,7 +13,7 @@ from apps.api.agents.subagents.market_research import make_market_research_tool
 from apps.api.agents.salesAnalyser.agent import run_sales_analysis
 from apps.api.agents.Orchestrator.orchestrator_router import orchestrator_router
 from apps.api.agents.cellarAudit.agent import run_inventory_audit
-from apps.api.agents.event_bus import AgentEvent, event_bus
+from apps.api.events.bus import AgentEvent, event_bus
 from apps.api.database.database import AsyncSessionLocal
 from apps.api.database.dependencies import get_demo_user_id
 from apps.api.database.repositories.recommendations_repository import RecommendationRepository
@@ -101,12 +102,20 @@ class Orchestrator:
                 analysis = await WineCellarAnalysisService.analyze_cellar(CellarRepository(session))
             await self._publish_event(
                 "observation",
-                "Cellar analysis completed successfully.",
+                f"Cellar analysis completed successfully : {analysis.summary}",
             )
         except Exception as e:
             await self._publish_event("alert", f"Error: {e}")
             return {'error': str(e)}
-        return {'cellar_analysis': analysis}
+        recommendations = analysis.recommendations or []
+        recommendations_json = json.dumps(
+            [rec.model_dump() for rec in recommendations],
+            ensure_ascii=True,
+        )
+        return {
+            "cellar_analysis": recommendations,
+            "analysis_query": recommendations_json,
+        }
 
     async def _run_market_analysis(self, state: OrchestratorState) -> dict:
         try:
@@ -184,6 +193,14 @@ class Orchestrator:
 
     @staticmethod
     def _print_graph(workflow: CompiledStateGraph):
+
+        from IPython.display import Image, display
+
+        png_data = workflow.get_graph().draw_mermaid_png()
+
+        with open("graph.png", "wb") as f:
+            f.write(Image(png_data))
+
 
         print(workflow.get_graph().print_ascii())
 

@@ -8,8 +8,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from apps.api.agents.Orchestrator.state import OrchestratorState
-from apps.api.agents.event_bus import AgentEvent, event_bus
-from apps.api.agents.events import Event
+from apps.api.events.bus import AgentEvent, event_bus
+from apps.api.events import Event
 from apps.api.llm_models.gemini_flash_3_1_lite import gemini_flash_3_1_lite
 
 
@@ -102,7 +102,8 @@ Workflow rules:
 - If a wine_sold event contains specific wine IDs, you may choose sales_analysis with a focused query.
 - If a wine_sold event contains specific wine IDs, you may also choose analyze_cellar with a focused query.
 - If sales_analysis has been run and has produced evidence of a certain wine or wine type to be relevant, you may choose run_market_analysis to find matching catalog wines and market context.
-- When you are satisfied, populate validated_analysis with a concise but complete validation summary.
+- If a market recommandation is marked as critical in market_analysis, you can choose persist_recommandations immediately and generate the validated_analysis based on the critical market fit.
+- If the state contains multiple market_analysis, try to synthesize them into a single validated_analysis summary and then choose persist_recommendations.
 - Only choose persist_recommendations when the analysis is validated and complete enough to save.
 - Keep the analysis moving forward; do not repeat the same node unless the state clearly still lacks the needed evidence.
 - Prefer progress over stalling. If the state is already sufficiently analyzed, finalize with persist_recommendations.
