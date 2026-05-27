@@ -21,6 +21,11 @@ class WineCardTriggerService:
 
     @classmethod
     def get_latest_report(cls) -> WineCardTriggerReport | None:
+        """Return the latest in-memory trigger report.
+
+        Returns:
+            Most recent report produced by ``run_once``, or ``None`` if never run.
+        """
         return cls._latest_report
 
     @classmethod
@@ -31,6 +36,23 @@ class WineCardTriggerService:
         vat_country: VatCountry = VatCountry.LU,
         min_stock_threshold: int = 2,
     ) -> WineCardTriggerReport:
+        """Execute one strategy check cycle and publish a trigger event.
+
+        Business Rules:
+            - Low-stock entries are defined as ``quantity <= min_stock_threshold``.
+            - Menu refresh runs on manual trigger or any low-stock detection.
+            - A summary event is emitted on the shared event bus.
+
+        Args:
+            reason: Trigger source (manual, wine_sold, or scheduled scan).
+            season: Seasonal context for menu refresh and analysis.
+            vat_country: VAT context for generated pricing.
+            min_stock_threshold: Threshold used to flag low-stock entries.
+
+        Returns:
+            A complete trigger report with inventory stats, suggestions, and
+            optional menu export/analysis payloads.
+        """
         async with AsyncReadSessionLocal() as session:
             user_id = await get_demo_user_id(session)
             service = WineCardService(WineCardRepository(session))
@@ -110,6 +132,15 @@ class WineCardTriggerService:
         low_stock_items: list[str],
         missing_categories: list[str],
     ) -> list[str]:
+        """Build procurement hints based on stock pressure and category gaps.
+
+        Args:
+            low_stock_items: Human-readable low-stock item labels.
+            missing_categories: Menu sections currently underrepresented.
+
+        Returns:
+            Prioritized procurement suggestions capped to 8 lines.
+        """
         suggestions: list[str] = []
         if low_stock_items:
             suggestions.append(
@@ -127,6 +158,14 @@ class WineCardTriggerService:
 
     @staticmethod
     def _build_sales_boost_suggestions(menu_analysis) -> list[str]:
+        """Build sales-activation suggestions from menu analysis outcomes.
+
+        Args:
+            menu_analysis: Optional analysis payload from menu diagnostics.
+
+        Returns:
+            Action-oriented suggestions for rotation and by-the-glass push.
+        """
         if not menu_analysis:
             return ["Run menu analysis first to generate sales boost suggestions."]
         suggestions = []
@@ -145,7 +184,14 @@ class WineCardTriggerService:
 
     @staticmethod
     def _build_wine_fair_watchlist(menu_analysis) -> list[str]:
-        """Placeholder watchlist to connect with future external market feeds."""
+        """Build a market-event watchlist for sourcing inspiration.
+
+        Args:
+            menu_analysis: Optional analysis payload used to enrich priorities.
+
+        Returns:
+            A base watchlist plus optional section-focused scouting notes.
+        """
         base_watchlist = [
             "ProWein (DE): track producer launches in weak sections.",
             "Wine Paris (FR): watch for balanced price/quality by-the-glass candidates.",
@@ -161,6 +207,12 @@ class WineCardTriggerService:
 
     @staticmethod
     async def run_event_listener():
+        """Listen to ``wine_sold`` events and trigger automatic strategy checks.
+
+        Side Effects:
+            - Subscribes to the global event bus for the process lifetime.
+            - Calls ``run_once`` for each ``wine_sold`` event.
+        """
         queue = event_bus.subscribe()
         try:
             while True:

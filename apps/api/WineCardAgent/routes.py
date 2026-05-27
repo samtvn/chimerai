@@ -40,6 +40,15 @@ class OneShotMenuInput(BaseModel):
 
 
 async def _resolve_restaurant_name(db: AsyncSession, user_id) -> str:
+    """Resolve display name used in exported menu headers.
+
+    Args:
+        db: Read-only async session.
+        user_id: Restaurant user identifier.
+
+    Returns:
+        Business name if present, otherwise user full name, otherwise default.
+    """
     user = await UserRepository(db, read_only=True).get_by_id(user_id)
     if not user:
         return "Chimerai Bistro"
@@ -51,6 +60,14 @@ async def _resolve_restaurant_name(db: AsyncSession, user_id) -> str:
 
 @router.get("/inventory")
 async def read_inventory(db: AsyncSession = Depends(get_read_db)):
+    """Return normalized inventory rows for Wine Card workflows.
+
+    Args:
+        db: Read-only async session dependency.
+
+    Returns:
+        Inventory payload with items and total count.
+    """
     try:
         user_id = await get_demo_user_id(db)
         service = WineCardService(WineCardRepository(db))
@@ -62,6 +79,14 @@ async def read_inventory(db: AsyncSession = Depends(get_read_db)):
 
 @router.post("/pricing/preview", response_model=PricingResult)
 async def preview_pricing(body: PricingPreviewInput):
+    """Preview TTC pricing for a single purchase price input.
+
+    Args:
+        body: Price and VAT-country input.
+
+    Returns:
+        Computed pricing breakdown used by the UI pricing widget.
+    """
     return calculate_restaurant_price_ttc(
         body.purchase_price_ht,
         vat_country=body.vat_country,
@@ -74,6 +99,16 @@ async def export_editable_menu(
     vat_country: VatCountry = VatCountry.LU,
     db: AsyncSession = Depends(get_read_db),
 ):
+    """Generate seasonal editable menu export for the demo user.
+
+    Args:
+        season: Seasonal profile used for menu selection.
+        vat_country: VAT-country context for TTC prices.
+        db: Read-only async session dependency.
+
+    Returns:
+        Rendered menu export payload (markdown + structured menu items).
+    """
     try:
         user_id = await get_demo_user_id(db)
         restaurant_name = await _resolve_restaurant_name(db, user_id)
@@ -94,6 +129,16 @@ async def analyze_wine_menu(
     vat_country: VatCountry = VatCountry.LU,
     db: AsyncSession = Depends(get_read_db),
 ):
+    """Run strategy analysis for the current seasonal menu candidate set.
+
+    Args:
+        season: Seasonal profile used for curation.
+        vat_country: VAT-country context used by price-based suggestions.
+        db: Read-only async session dependency.
+
+    Returns:
+        Menu analysis with gaps, warnings, and section-level diagnostics.
+    """
     try:
         user_id = await get_demo_user_id(db)
         service = WineCardService(WineCardRepository(db))
@@ -111,6 +156,15 @@ async def generate_one_shot_menu(
     body: OneShotMenuInput,
     db: AsyncSession = Depends(get_read_db),
 ):
+    """Generate one-shot event menu with export and strategy analysis.
+
+    Args:
+        body: Occasion, VAT and service-format input.
+        db: Read-only async session dependency.
+
+    Returns:
+        One-shot menu result including export, analysis and pairing hints.
+    """
     try:
         user_id = await get_demo_user_id(db)
         restaurant_name = await _resolve_restaurant_name(db, user_id)
@@ -134,6 +188,17 @@ async def run_wine_card_trigger(
     vat_country: VatCountry = VatCountry.LU,
     min_stock_threshold: int = 2,
 ):
+    """Execute one Wine Strategy Check cycle on demand.
+
+    Args:
+        reason: Trigger reason shown in the strategy report.
+        season: Seasonal context used by downstream menu refresh.
+        vat_country: VAT-country context for generated prices.
+        min_stock_threshold: Threshold used to classify low-stock entries.
+
+    Returns:
+        Trigger report used by the Wine Strategy Check UI section.
+    """
     try:
         return await WineCardTriggerService.run_once(
             reason=reason,
@@ -147,4 +212,9 @@ async def run_wine_card_trigger(
 
 @router.get("/trigger/latest", response_model=WineCardTriggerReport | None)
 async def get_latest_wine_card_trigger_report():
+    """Return the latest in-memory strategy trigger report.
+
+    Returns:
+        Latest trigger report, or ``None`` when no trigger has run yet.
+    """
     return WineCardTriggerService.get_latest_report()

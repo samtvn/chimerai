@@ -133,10 +133,29 @@ OCCASION_PROFILES = {
 
 
 class WineCardService:
+    """Core application service for Wine Card generation and analysis.
+
+    This service orchestrates inventory reads, seasonal filtering, pricing,
+    menu export formatting, and trigger-oriented strategy analysis.
+    """
+
     def __init__(self, repository: WineCardRepository):
+        """Create a service instance bound to a repository.
+
+        Args:
+            repository: Data access object used to read inventory inputs.
+        """
         self.repository = repository
 
     async def read_inventory(self, user_id: UUID) -> list[InventoryItem]:
+        """Load current inventory rows for a user.
+
+        Args:
+            user_id: Target restaurant user identifier.
+
+        Returns:
+            Normalized inventory items with quantity and pricing inputs.
+        """
         return await self.repository.read_inventory(user_id=user_id)
 
     async def export_editable_menu(
@@ -146,6 +165,21 @@ class WineCardService:
         vat_country: VatCountry = VatCountry.LU,
         restaurant_name: str = "Chimerai Bistro",
     ) -> MenuExportResult:
+        """Generate an editable seasonal menu markdown + structured rows.
+
+        Business Rules:
+            - Inventory is season-filtered before pricing/export.
+            - Export ordering is section-first with display-mode hints.
+
+        Args:
+            user_id: Target restaurant user identifier.
+            season: Seasonal profile used for filtering and weighting.
+            vat_country: VAT context for TTC computation.
+            restaurant_name: Header label used in exported markdown.
+
+        Returns:
+            Fully rendered menu export payload.
+        """
         inventory = await self.read_inventory(user_id=user_id)
         selected_inventory, _, _, _, _ = self._select_inventory_for_season(inventory, season)
         return self._build_menu_export_from_inventory(
@@ -161,6 +195,16 @@ class WineCardService:
         season: Season,
         vat_country: VatCountry = VatCountry.LU,
     ) -> MenuAnalysisResult:
+        """Run strategy analysis for a seasonal menu selection.
+
+        Args:
+            user_id: Target restaurant user identifier.
+            season: Seasonal profile used for curation strategy.
+            vat_country: VAT context used by by-the-glass suggestions.
+
+        Returns:
+            Strategy summary including gaps, alerts, and section counts.
+        """
         inventory = await self.read_inventory(user_id=user_id)
         return self._build_menu_analysis_from_inventory(
             inventory=inventory,
@@ -177,6 +221,24 @@ class WineCardService:
         menu_total_price_ttc: float | None = None,
         restaurant_name: str = "Chimerai Bistro",
     ) -> OneShotMenuResult:
+        """Create a one-shot event menu for a specific occasion.
+
+        Business Rules:
+            - Non-banquet occasions default to by-the-glass mode.
+            - Service count is normalized to a 4-5 service style (bounded 3..5).
+            - Selection prioritizes operational stock and section quotas.
+
+        Args:
+            user_id: Target restaurant user identifier.
+            occasion: Event profile driving season and section targets.
+            vat_country: VAT context for all TTC prices.
+            service_count: Desired number of services for pairing progression.
+            menu_total_price_ttc: Optional customer menu total used for budget hints.
+            restaurant_name: Header label used in exported markdown.
+
+        Returns:
+            One-shot result with export, analysis, pairing notes, and prompt text.
+        """
         inventory = await self.read_inventory(user_id=user_id)
         profile = OCCASION_PROFILES[occasion]
         season: Season = profile["season"]
@@ -542,6 +604,21 @@ class WineCardService:
         season: Season,
         strategy_override: SeasonalStrategy | None = None,
     ) -> tuple[list[InventoryItem], int, list[str], list[str], bool]:
+        """Select seasonal references from inventory using weighted curation.
+
+        Args:
+            inventory: Raw inventory rows, potentially containing duplicate vintages.
+            season: Seasonal profile used for scoring and section targets.
+            strategy_override: Optional occasion-specific strategy replacement.
+
+        Returns:
+            Tuple containing:
+                - selected inventory references for the menu
+                - total unique candidate count after vintage collapsing
+                - duplicate-vintage alerts
+                - cheap/low-stock alerts
+                - whether menu reprint should be considered
+        """
         strategy = strategy_override or SEASONAL_STRATEGIES[season]
         collapsed_inventory, duplicate_vintage_alerts = self._collapse_to_oldest_vintages(inventory)
         total_candidates = len(collapsed_inventory)
@@ -604,6 +681,20 @@ class WineCardService:
         vat_country: VatCountry,
         restaurant_name: str,
     ) -> MenuExportResult:
+        """Build the menu export payload from a preselected inventory set.
+
+        Side Effects:
+            None. This method is deterministic for a given input list.
+
+        Args:
+            inventory: Curated references to render.
+            season: Season label for the menu title.
+            vat_country: VAT context for TTC prices.
+            restaurant_name: Header name used in markdown output.
+
+        Returns:
+            Structured export containing markdown and menu row details.
+        """
         menu_items: list[MenuItem] = []
         # Split inventory into by-the-glass candidates (front) and bottle-only (back)
         glass_items: list[MenuItem] = []
@@ -667,6 +758,17 @@ class WineCardService:
         vat_country: VatCountry,
         strategy_override: SeasonalStrategy | None = None,
     ) -> MenuAnalysisResult:
+        """Compute strategy diagnostics for a seasonal menu candidate set.
+
+        Args:
+            inventory: Raw inventory rows before seasonal reduction.
+            season: Seasonal profile used for curation.
+            vat_country: VAT context for glass/bottle suggestion pricing.
+            strategy_override: Optional occasion profile strategy.
+
+        Returns:
+            Full analysis object used by the Wine Strategy Check UI.
+        """
         strategy = strategy_override or SEASONAL_STRATEGIES[season]
         selected_inventory, total_candidates, duplicate_vintage_alerts, cheap_low_stock_alerts, reprint_menu_recommended = (
             self._select_inventory_for_season(
@@ -891,6 +993,21 @@ class WineCardService:
         suggested_per_service_price_ttc: float | None,
         menu_export: MenuExportResult,
     ) -> str:
+        """Compose the briefing prompt for an LLM sommelier assistant.
+
+        Args:
+            occasion: Event context used to set tone and constraints.
+            season: Seasonal context used for pairing expectations.
+            by_glass_mode: Whether the menu is glass-first vs bottle-first.
+            service_count: Number of planned services.
+            menu_total_price_ttc: Optional customer menu total.
+            suggested_pairing_price_ttc: Optional target pairing total.
+            suggested_per_service_price_ttc: Optional per-service target.
+            menu_export: Current candidate menu export metadata.
+
+        Returns:
+            Prompt text encoding constraints and expected output style.
+        """
         lines = [
             "You are a sommelier assistant for a restaurant wine pairing proposal.",
             f"Occasion: {occasion.value}",
