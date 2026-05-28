@@ -9,6 +9,7 @@
     "dev": "pnpm run dev:web & pnpm run dev:api",
     "build:web": "pnpm --filter chimerai-web build",
     "build": "pnpm run build:web",
+    "db:reset": "uv run -m apps.api.database.reset_db",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "typecheck": "pnpm --filter chimerai-web check && pnpm --filter @chimerai/types typecheck"
